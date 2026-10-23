@@ -24,7 +24,7 @@ export interface Business {
 
 /** The columns an owner may change (matches the database's column-level grants). */
 export type BusinessPatch = Partial<
-  Pick<Business, 'name' | 'address' | 'place_id' | 'slug' | 'logo_url' | 'brand_color' | 'thank_you_message' | 'goal_rating' | 'qr_downloaded_at' | 'alerts_enabled'>
+  Pick<Business, 'name' | 'address' | 'place_id' | 'slug' | 'logo_url' | 'brand_color' | 'thank_you_message' | 'goal_rating' | 'qr_downloaded_at' | 'alerts_enabled' | 'tracking_start_date'>
 >
 
 interface BusinessState {

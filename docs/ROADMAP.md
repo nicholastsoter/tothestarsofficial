@@ -82,6 +82,30 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
   text, and only the HTTP status is ever logged, never the provider's response body.
 - The Settings "Send test alert" button (3 per hour per account) emails only the owner's own login address.
 
+## Phase 4 assumptions I made (change any of them)
+
+- **Days are the business's local days** (`businesses.timezone`), including across daylight-saving changes. Weeks start on Monday.
+- **Ratings come from feedback rows** (one per visit), never from `star_click` events. Events are used only for page views, star taps (funnel), survey completions and Google clicks.
+- **Click-through rate** is Google link clicks divided by page views, as you specified. Because the link appears twice on a page and people can click repeatedly, it can exceed 100%; a footnote says so.
+- **Trend arrows need at least 5 ratings in BOTH periods**, for every card (one rule, one explanation line). Below that the number shows with no arrow and the reason.
+- **Average rating line:** dots for buckets with fewer than 5 ratings are hollow.
+- **"Ratings mix over time"** groups stars into happy (4-5), neutral (3) and unhappy (1-2) to keep the stack readable; the tooltip and table give every star.
+- **Before/after** compares equal windows (up to 90 days) on each side of `tracking_start_date`. Since all our data begins when the review page is first used, "before" data exists only if the owner sets the start date later than their first ratings; the page says so instead of charting nothing.
+- **Goal progress** = average rating of the last 30 days / goal, capped at 100%.
+- **Tracking start date** and **goal** are editable in Settings (both were already columns).
+- **No dark theme yet:** the chart colours are the validated light-surface values.
+- **Seed script** uses its own fake business and login (not your real business) so fake rows can never mix with real ones; events can't carry a label, which is why it is a separate business.
+
+## Google rating panel: decision needed
+
+Google's pricing page (checked 23 Oct 2026): `rating` and `userRatingCount` are **Place Details Enterprise**
+fields. That SKU is **$20.00 per 1,000 requests**, with a **free cap of 1,000 requests per month**. Every
+field you ask for bills at the highest SKU among them, so asking for only these two fields still bills Enterprise.
+The 1,000 free requests are shared by every business on the app (about 33 a day).
+
+Options for WHEN to fetch, with the caps each implies, are in the Phase 4 report. Nothing for this panel
+has been built yet: the `google-rating` function, its caps and the panel wait for your pick.
+
 ## Launch checklist: do NOT onboard a real customer until all of these are true
 
 ### Production domain (do this first: other items depend on it)
@@ -127,6 +151,7 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
       including that no customer contact details appear in them.
 - [ ] Privacy policy and terms: drafts replaced by the lawyer-reviewed versions, banner removed,
       all [BRACKETS] filled in.
+- [ ] The fake demo account is deleted (`node scripts/seed-test-data.mjs --project-ref <ref> --delete`).
 - [ ] Account deletion tested end to end on the real project with a throwaway account.
 
 ## Phase 5 (not started)

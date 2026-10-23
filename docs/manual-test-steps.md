@@ -164,3 +164,52 @@ log in to the app with that same address for these tests.
 ## F. Google search limits
 1. In Settings, search for your business 21 times in an hour: the 21st says you've searched a lot.
 2. (Hard to trigger by hand) after 300 searches in a day across all accounts, search says it's busy, try tomorrow.
+
+---
+
+# Phase 4 manual test steps (Analytics)
+
+Setup first: migration `0008` applied (the app's Analytics page calls it). The Google rating panel is not
+built yet, so there is nothing to test for it.
+
+## A. Get realistic data on screen (fake data, separate from your real business)
+1. In your own terminal set the two variables (values from Supabase, Project Settings, API; never paste them into chat):
+   `export SUPABASE_URL="https://<ref>.supabase.co"` and `export SUPABASE_SERVICE_ROLE_KEY="<service_role key>"`.
+2. Dry run first: `node scripts/seed-test-data.mjs --project-ref <ref>`. It prints the plan and writes nothing.
+3. Check the safety: set `SUPABASE_URL` to a different project's URL and run again with the same `--project-ref`:
+   it must refuse. So must running without `--project-ref`.
+4. Create it: `node scripts/seed-test-data.mjs --project-ref <ref> --apply`. It prints a fake login email and a
+   one-time password. The business is called "FAKE DATA: Test Business" and every message starts with `[FAKE]`.
+5. Log in to the app with that fake login (a private window keeps it apart from your real account) and open **Analytics**.
+6. When you're done: `node scripts/seed-test-data.mjs --project-ref <ref> --delete` removes the account and all its data.
+
+## B. Analytics page (as the fake user)
+1. Last 30 days is selected. Six cards show numbers with ▲ arrows and "vs previous 30 days". Charts fill in below.
+2. Click Last 7 days, Last 90 days, All time: numbers and charts change; the "Group by" menu only offers sensible choices
+   (e.g. no "Day" for 90 days). All time has no arrows and says there's no earlier period.
+3. Custom: pick an end date before the start date and Apply: you get an error. Pick a valid range: it loads, and the
+   comparison is the same number of days directly before it.
+4. On each chart click **View as table**: the same numbers appear as a table.
+5. Hover a bar or dot for a tooltip. Hollow dots on the average line mean fewer than 5 ratings in that bucket.
+6. Scroll to the funnel: page views, star taps, feedback with a message, Google clicks, each as a share of page views.
+7. Footnotes say page views are raw counts (no visitor ID).
+
+## C. Honest small numbers
+1. Log in as your REAL (new, nearly empty) business and open Analytics: numbers show, no arrows, one line explains
+   "too few ratings to call a trend", the goal card says it's a rough guide, and before/after says there isn't enough "before" data.
+2. A brand-new business with nothing shows "No activity in this period" and empty-chart messages, never blank charts.
+
+## D. Improvement tracking, goal, tracking start date
+1. As the fake user: "Improvement over time" shows goal progress (a bar and "4.0 of your 4.5 goal"), a before/after
+   comparison, and weekly/monthly average and mix charts. The note says this is customers who used the review page, not the full Google rating.
+2. Settings: set **Goal rating** to `6` (refused), `4.55` (refused), `4.5` (saved). Set **Tracking start date** to a future date (refused).
+   Move the tracking start date a few weeks earlier/later and reopen Analytics: the before/after windows move with it.
+3. Clear the goal (empty box) and save: Analytics says you haven't set a goal.
+
+## E. Time zones (optional)
+1. Change the fake business's time zone in Supabase (`businesses.timezone`) to `Pacific/Auckland`, reload Analytics:
+   the daily bars shift to the new local days and the subtitle names the zone. Set it back.
+
+## F. Isolation
+1. While logged in as the fake user, the numbers are only the fake business's. Log in as your real account in another
+   window: its numbers are unaffected. (The database tests also prove business A cannot see business B's numbers.)

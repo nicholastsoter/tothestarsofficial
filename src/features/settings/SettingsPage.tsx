@@ -5,6 +5,8 @@ import { Button, Card, Field, Notice } from '../../components/ui/ui'
 import { useAuth } from '../../contexts/AuthContext'
 import { useBusiness, type BusinessPatch } from '../../contexts/BusinessContext'
 import { isHexColor } from '../../lib/color'
+import { addDays, isDate } from '../analytics/ranges'
+import { parseGoal } from '../analytics/trend'
 import { validateSlug } from '../../lib/slug'
 import { supabase } from '../../lib/supabase'
 import DeleteAccount from './DeleteAccount'
@@ -22,6 +24,8 @@ export default function SettingsPage() {
   const [color, setColor] = useState('#2563eb')
   const [thanks, setThanks] = useState('')
   const [slug, setSlug] = useState('')
+  const [goalText, setGoalText] = useState('')
+  const [trackingStart, setTrackingStart] = useState('')
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({})
   const [formError, setFormError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -35,6 +39,8 @@ export default function SettingsPage() {
     setColor(business.brand_color)
     setThanks(business.thank_you_message)
     setSlug(business.slug)
+    setGoalText(business.goal_rating === null ? '' : Number(business.goal_rating).toFixed(1))
+    setTrackingStart(business.tracking_start_date)
   }, [business])
 
   if (loading) return <p className="text-sm text-slate-500" role="status">Loading…</p>
@@ -85,6 +91,10 @@ export default function SettingsPage() {
     if (address.length > 300) errors.address = 'Keep the address under 300 characters.'
     if (!isHexColor(color)) errors.color = 'Use a colour like #2563eb.'
     if (thanks.length > 500) errors.thanks = 'Keep the message under 500 characters.'
+    const goal = parseGoal(goalText)
+    if ('error' in goal) errors.goal = goal.error
+    // one day of slack so someone ahead of UTC can still pick "today"
+    if (!isDate(trackingStart) || trackingStart > addDays(new Date().toISOString().slice(0, 10), 1)) errors.tracking = 'Choose a date that is not in the future.'
     const slugProblem = slugChanged ? validateSlug(slug) : null
     if (slugProblem) errors.slug = slugProblem
     setFieldErrors(errors)
@@ -95,6 +105,8 @@ export default function SettingsPage() {
     if ((address.trim() || null) !== business.address) patch.address = address.trim() || null
     if (color.toLowerCase() !== business.brand_color.toLowerCase()) patch.brand_color = color.toLowerCase()
     if (thanks !== business.thank_you_message) patch.thank_you_message = thanks
+    if ('value' in goal && goal.value !== (business.goal_rating === null ? null : Number(business.goal_rating))) patch.goal_rating = goal.value
+    if (trackingStart !== business.tracking_start_date) patch.tracking_start_date = trackingStart
     // the database trigger saves the old slug to slug_history, so printed QR codes keep working
     if (slugChanged) patch.slug = slug
     if (Object.keys(patch).length === 0) return setSaved(true)
@@ -131,6 +143,17 @@ export default function SettingsPage() {
             <span className="mt-1 block text-xs text-slate-500">Shown at the bottom of your review page. {thanks.length}/500</span>
             {fieldErrors.thanks && <span className="block text-xs text-red-700">{fieldErrors.thanks}</span>}
           </label>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <Field label="Goal rating (optional)" value={goalText} onChange={(e) => setGoalText(e.target.value)} inputMode="decimal" placeholder="4.5" maxLength={3} hint="Average rating you’re aiming for, from 1.0 to 5.0. Shown on Analytics." />
+              {fieldErrors.goal && <p className="mt-1 text-xs text-red-700">{fieldErrors.goal}</p>}
+            </div>
+            <div>
+              <Field label="Tracking start date" type="date" value={trackingStart} onChange={(e) => setTrackingStart(e.target.value)} hint="When you started using the review page. Analytics compares before and after this date." />
+              {fieldErrors.tracking && <p className="mt-1 text-xs text-red-700">{fieldErrors.tracking}</p>}
+            </div>
+          </div>
 
           <div>
             <Field label="Review page link name" value={slug} onChange={(e) => setSlug(e.target.value.toLowerCase())} maxLength={50} autoComplete="off" spellCheck={false} />
