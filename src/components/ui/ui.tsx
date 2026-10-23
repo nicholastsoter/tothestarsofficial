@@ -71,6 +71,9 @@ export function AuthCard({ title, subtitle, children }: { title: string; subtitl
         </div>
         {children}
       </div>
+      <p className="mt-6 text-xs text-slate-500">
+        <Link to="/privacy" className="underline">Privacy</Link> · <Link to="/terms" className="underline">Terms</Link>
+      </p>
     </main>
   )
 }

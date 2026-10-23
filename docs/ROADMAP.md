@@ -49,6 +49,35 @@
 - **Contact opt-in** (name/email with an explicit checkbox) is on the public form.
 - Onboarding step 4 uses a new `businesses.qr_downloaded_at` column so it's marked done from data.
 
+## Phase 3 assumptions I made (change any of them)
+
+- **Alerts are built but not connected to an email provider.** The database decides whether an
+  alert is due and claims it atomically (`claim_low_rating_alert`), so there is at most one email
+  per feedback item; `submit-public` sends it; a failed send releases the claim so the next edit can
+  retry. Until a provider is wired in, no claim is ever made and no email goes out. Limits: 1-3 stars,
+  only once the item has a message or survey answers, only if the owner's toggle is on, at most
+  10 per business per hour.
+- **The alert email also lists survey answers** (with the question text), not only the message,
+  because many low ratings carry answers and no message. It never includes contact details.
+- **Dates in the inbox filter and the CSV use the business's time zone**, not UTC or the browser's.
+- **Reordering uses up/down buttons**, not drag and drop (accessible and simpler). It is one atomic
+  database call, so the unique position rule can't be broken.
+- **Required questions** are only enforced once the customer starts answering (the survey stays optional).
+- **Survey switched off** (or no questions): 1-3 star customers see a simple text box instead.
+- **A survey edited mid-visit:** the server validates answers against the CURRENT questions. If a
+  customer's answers no longer fit, the page reloads the questions, keeps what still fits, and asks
+  them to send again. Old responses keep the wording they were answered with.
+- **CSV export** has no row cap; it fetches 500 rows at a time and builds the file in batches so the
+  page stays responsive. It lists each survey question as a column and includes contact details
+  only where the customer opted in.
+- **Privacy policy and terms are DRAFTS** with a banner and placeholders. They need legal review.
+
+## Email provider decision (waiting on you)
+
+See the options in the Phase 3 report. Wiring needs: the provider's API key as a Supabase secret,
+a verified sender, `APP_BASE_URL`, and a small `send` function (the email content is already built
+and tested in `supabase/functions/_shared/alertEmail.ts`).
+
 ## Launch checklist: do NOT onboard a real customer until all of these are true
 
 - [ ] Privacy policy and Terms pages are live and linked from the public review page and signup
@@ -64,6 +93,10 @@
       codes print the production address.
 - [ ] Manual two-account isolation test passed (steps in `docs/manual-test-steps.md`).
 - [ ] `cleanup_rate_limits()` scheduled daily.
+- [ ] Email provider connected with a VERIFIED sending domain; alert emails tested end to end,
+      including that no customer contact details appear in them.
+- [ ] Privacy policy and terms: drafts replaced by the lawyer-reviewed versions, banner removed,
+      all [BRACKETS] filled in.
 - [ ] Account deletion tested end to end on the real project with a throwaway account.
 
 ## Phase 5 (not started)

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, Field, Notice } from '../../components/ui/ui'
+import { useAuth } from '../../contexts/AuthContext'
 import { useBusiness, type BusinessPatch } from '../../contexts/BusinessContext'
 import { isHexColor } from '../../lib/color'
 import { validateSlug } from '../../lib/slug'
@@ -10,6 +11,9 @@ import LogoUploader from './LogoUploader'
 
 export default function SettingsPage() {
   const { business, loading, update } = useBusiness()
+  const { user } = useAuth()
+  const [alertsBusy, setAlertsBusy] = useState(false)
+  const [alertsError, setAlertsError] = useState<string | null>(null)
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [color, setColor] = useState('#2563eb')
@@ -41,6 +45,16 @@ export default function SettingsPage() {
   }
 
   const slugChanged = slug !== business.slug
+  const alerts = business.alerts_enabled
+
+  // saved straight away: it's a preference, not part of the form below
+  async function onToggleAlerts(next: boolean) {
+    setAlertsBusy(true)
+    setAlertsError(null)
+    const err = await update({ alerts_enabled: next })
+    if (err) setAlertsError(err)
+    setAlertsBusy(false)
+  }
 
   async function onSave(e: FormEvent) {
     e.preventDefault()
@@ -112,11 +126,14 @@ export default function SettingsPage() {
           </div>
 
           <div className="rounded-lg bg-slate-50 p-3 ring-1 ring-slate-200">
-            <label className="flex items-center gap-2 text-sm text-slate-500">
-              <input type="checkbox" disabled checked={business.alerts_enabled} readOnly />
-              Email me when someone leaves a low rating
+            <label className="flex items-start gap-2 text-sm">
+              <input type="checkbox" className="mt-0.5" checked={alerts} onChange={(e) => void onToggleAlerts(e.target.checked)} disabled={alertsBusy} />
+              <span>
+                Email me when someone leaves a low rating (3 stars or fewer) with a message or survey answers
+                <span className="mt-1 block text-xs text-slate-500">One email per feedback item, to {user?.email ?? 'your account email'}, and at most 10 an hour. Emails never include your customer’s contact details.</span>
+              </span>
             </label>
-            <p className="mt-1 text-xs text-slate-500">Coming in Phase 3.</p>
+            {alertsError && <p role="alert" className="mt-2 text-xs text-red-700">{alertsError}</p>}
           </div>
 
           {formError && <Notice tone="error">{formError}</Notice>}

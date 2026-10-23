@@ -2,6 +2,7 @@
 // verification OFF because visitors are not logged in; protection comes from the honeypot,
 // per-visitor rate limits, and Turnstile (required whenever feedback is created or changed).
 
+import type { AlertClaim } from '../_shared/alertEmail.ts'
 import type { Rpc } from '../_shared/clients.ts'
 import { clientIp, hmacHex, isRecord, json, preflight, readJsonBody, sha256Hex } from '../_shared/http.ts'
 
@@ -11,6 +12,8 @@ export interface SubmitPublicDeps {
   verifyTurnstile: ((token: string) => Promise<boolean>) | null
   /** secret used to hash visitor IPs; null makes every request fail closed. */
   ipHashSecret: string | null
+  /** Sends the low-rating alert email. null = no email provider configured: alerts are never claimed. */
+  sendAlert?: ((claim: AlertClaim) => Promise<void>) | null
   feedbackPerHour?: number
   eventsPerHour?: number
 }
@@ -82,6 +85,26 @@ const isFail = (v: object): v is Fail => 'status' in v
 export function createSubmitPublicHandler(deps: SubmitPublicDeps) {
   const feedbackLimit = deps.feedbackPerHour ?? 30
   const eventLimit = deps.eventsPerHour ?? 300
+
+  /** Low ratings with content trigger at most one alert per item. The database decides (and claims
+   *  it atomically); this only sends. Nothing here can ever fail the customer's submission. */
+  async function maybeAlert(slug: string, f: FeedbackInput) {
+    const hasContent = (f.message ?? '').trim() !== '' || f.answers.length > 0
+    if (!deps.sendAlert || f.star > 3 || !hasContent) return
+    try {
+      const tokenHash = await sha256Hex(f.visitToken)
+      const claim = (await deps.rpc('claim_low_rating_alert', { p_slug: slug, p_token_hash: tokenHash })) as AlertClaim | null
+      if (!claim) return
+      try {
+        await deps.sendAlert(claim)
+      } catch (err) {
+        console.error('alert email failed:', err instanceof Error ? err.name : 'unknown error')
+        await deps.rpc('release_alert', { p_feedback_id: claim.feedback_id }) // let the next edit retry
+      }
+    } catch (err) {
+      console.error('alert step failed:', err instanceof Error ? err.name : 'unknown error')
+    }
+  }
 
   return async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') return preflight()
@@ -155,7 +178,10 @@ export function createSubmitPublicHandler(deps: SubmitPublicDeps) {
       })) as { ok: boolean; error?: string }
 
       // only ever answer with ok/error: no row ids, no stored values
-      if (result.ok) return json(200, { ok: true })
+      if (result.ok) {
+        await maybeAlert(slug, feedback)
+        return json(200, { ok: true })
+      }
       const status = result.error === 'not_found' ? 404 : result.error === 'expired' ? 409 : result.error === 'invalid_token' ? 403 : 400
       return json(status, { error: result.error === 'expired' ? 'visit_expired' : result.error })
     } catch (err) {

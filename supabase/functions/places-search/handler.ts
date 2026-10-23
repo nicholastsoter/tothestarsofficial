@@ -10,8 +10,10 @@ export interface PlacesSearchDeps {
   rpc: Rpc
   googleApiKey: string | null
   fetch?: FetchLike
-  /** searches allowed per account per hour (each keystroke batch counts as one) */
+  /** searches allowed per account per hour (each debounced search counts as one) */
   perHour?: number
+  /** Google calls allowed per day across ALL accounts: a hard ceiling on what a bug or abuse can cost */
+  dailyCap?: number
 }
 
 const PLACE_ID = /^[A-Za-z0-9_-]{10,200}$/
@@ -26,7 +28,8 @@ interface Prediction {
 
 export function createPlacesSearchHandler(deps: PlacesSearchDeps) {
   const doFetch = deps.fetch ?? fetch
-  const perHour = deps.perHour ?? 100
+  const perHour = deps.perHour ?? 20
+  const dailyCap = deps.dailyCap ?? 300
 
   return async (req: Request): Promise<Response> => {
     if (req.method === 'OPTIONS') return preflight()
@@ -54,6 +57,11 @@ export function createPlacesSearchHandler(deps: PlacesSearchDeps) {
 
       const allowed = await deps.rpc('rate_limit_hit', { p_key: `places:${user.id}`, p_limit: perHour, p_window_seconds: 3600 })
       if (allowed !== true) return json(429, { error: 'rate_limited' }, { 'Retry-After': '3600' })
+
+      // Global daily cap, checked only after the account limit passes so that a blocked account
+      // never uses up everyone else's searches. The window is a UTC day (86400 s).
+      const underCap = await deps.rpc('rate_limit_hit', { p_key: 'places:global', p_limit: dailyCap, p_window_seconds: 86400 })
+      if (underCap !== true) return json(429, { error: 'search_busy' }, { 'Retry-After': '86400' })
 
       const res = await doFetch('https://places.googleapis.com/v1/places:autocomplete', {
         method: 'POST',

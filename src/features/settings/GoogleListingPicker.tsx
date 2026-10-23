@@ -16,7 +16,11 @@ const sessionId = () => crypto.randomUUID().replace(/-/g, '')
 async function describeSearchError(error: unknown): Promise<string> {
   if (error instanceof FunctionsHttpError) {
     const status = error.context.status
-    if (status === 429) return 'You’ve searched a lot in the past hour. Please wait a bit and try again.'
+    if (status === 429) {
+      const code = await error.context.json().then((b: { error?: string }) => b.error).catch(() => undefined)
+      if (code === 'search_busy') return 'Search is busy right now. Please try again tomorrow, or come back to this step later.'
+      return 'You’ve searched a lot in the past hour. Please wait a bit and try again.'
+    }
     if (status === 401) return 'Your session expired. Please log in again.'
   }
   return 'Google search isn’t available right now. Please try again in a moment.'

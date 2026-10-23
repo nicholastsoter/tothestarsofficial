@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { useNewCount } from '../../features/inbox/useNewCount'
 import { Logo } from '../ui/ui'
 
 const NAV = [
   { to: '/dashboard', label: 'Dashboard' },
+  { to: '/inbox', label: 'Inbox' },
   { to: '/survey', label: 'Survey' },
   { to: '/analytics', label: 'Analytics' },
   { to: '/qr', label: 'QR & Link' },
@@ -13,6 +15,7 @@ const NAV = [
 
 function SideNav({ onNavigate }: { onNavigate?: () => void }) {
   const { user, signOut } = useAuth()
+  const newCount = useNewCount(true)
   return (
     <div className="flex h-full flex-col">
       <div className="px-5 py-5">
@@ -30,7 +33,12 @@ function SideNav({ onNavigate }: { onNavigate?: () => void }) {
               }`
             }
           >
-            {item.label}
+            <span className="flex items-center justify-between">
+              {item.label}
+              {item.to === '/inbox' && newCount > 0 && (
+                <span className="rounded-full bg-indigo-600 px-2 py-0.5 text-xs font-semibold text-white" aria-label={`${newCount} new`}>{newCount > 99 ? '99+' : newCount}</span>
+              )}
+            </span>
           </NavLink>
         ))}
       </nav>

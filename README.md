@@ -13,10 +13,17 @@ React + Vite + TypeScript, Tailwind, Supabase. No AI features.
 | `npm run build` | Typecheck and build for production |
 | `npm run bundle:functions` | Bundle each Edge Function into one file under `dist-functions/` |
 
+## What's in the app (Phases 1-3)
+
+Sign-up and verification, onboarding checklist, Google listing lookup, settings, QR/print sign,
+public review page, **survey editor with live preview, feedback inbox (filters, search, notes,
+CSV export), response view, and low-rating email alerts (built, provider not connected yet)**.
+Draft privacy and terms pages live at `/privacy` and `/terms`.
+
 ## Setup
 
 ### 1. Supabase
-1. Create a project. Apply `supabase/migrations/*.sql` in order (SQL editor, or `supabase db push`).
+1. Create a project. Apply `supabase/migrations/*.sql` in order (0001 to 0007) (SQL editor, or `supabase db push`).
 2. Authentication, URL Configuration: Site URL `http://localhost:5173`; Redirect URLs
    `http://localhost:5173/dashboard` and `http://localhost:5173/reset-password`.
 3. Authentication, Email: keep "Confirm email" ON.
@@ -32,6 +39,10 @@ Dashboard, Edge Functions, Secrets (or `supabase secrets set NAME=value`):
 | `GOOGLE_PLACES_API_KEY` | Lets `places-search` call Google | see "Google Places key" below |
 | `TURNSTILE_SECRET_KEY` | Lets `submit-public` check bot-test tokens | Cloudflare, see below |
 | `IP_HASH_SECRET` | Scrambles visitor IPs before they are counted | run `openssl rand -hex 32` and paste the result |
+
+Coming with the email provider (not wired yet, see `docs/ROADMAP.md`): an API key for the chosen
+provider, a verified sender address, and `APP_BASE_URL` (the address owners click to reach their
+inbox, e.g. `https://yourapp.com`).
 
 `SUPABASE_URL`, `SUPABASE_ANON_KEY` and `SUPABASE_SERVICE_ROLE_KEY` are provided to functions
 automatically. Until the three secrets above are set, the functions refuse to work (by design).

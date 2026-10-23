@@ -82,3 +82,60 @@ filled in (README). Use the Turnstile test key pair for local testing.
   the Google button still works.
 - In the console: `fetch('<SUPABASE_URL>/functions/v1/submit-public',{method:'POST',body:JSON.stringify({action:'submit_feedback',slug:'<slug>',visit_token:'a'.repeat(32),star:5})})`
   returns `captcha_required`; with a made-up `turnstile_token` returns `captcha_failed`.
+
+---
+
+# Phase 3 manual test steps
+
+Setup: migration `0007` applied; `submit-public` and `places-search` redeployed; an account with a
+business (Phase 2). The alert email is NOT connected yet, so skip section D until a provider is wired in.
+
+## A. Survey editor
+1. Side nav, **Survey**. The two starter questions show, with a live preview on the right (a phone-style
+   card: 2 stars, the Google button first, then your questions).
+2. Move question 2 up, then reload: the order stuck. Preview matches.
+3. **+ Add question**: click Add with nothing typed ("Write the question first"). Choose Multiple choice
+   with one empty option (refused), two identical options (refused), then valid options (added).
+4. Edit a question; delete one (a warning says past responses keep their wording).
+5. Add questions until you have 10: the Add button disables ("10 of 10").
+6. Untick **Survey is on**: the preview shows the "simple text box" note. On your public page, tap 2 stars:
+   a plain text box replaces the questions. Tick it back on.
+7. Open `/r/<slug>` in a private window, tap 2 stars, answer a question. In the dashboard, delete that
+   question, then press Send in the private window: the page says the survey was updated, drops that
+   answer, keeps the rest, and Send works again. Edits reach the public page immediately.
+
+## B. Inbox
+1. Submit feedback from the public page: a 2-star with a message, a 5-star with a message, a 3-star with
+   survey answers, and a bare star tap. In **Inbox**: all but the bare tap appear.
+   (Analytics will count the bare tap.)
+2. The Inbox menu item shows the number of New items. Mark one resolved: the number drops. Reopen it.
+3. Filter by status, star range and dates; search for a word from a message and for a survey answer;
+   search `%` or `_` (they match only those literal characters). Try each sort.
+4. Add a private note and Save. Reload: it's still there. It never appears on the public page.
+5. A customer who ticked "OK to contact me" shows name/email on the card; others show none.
+6. Delete an item: it asks for confirmation first.
+7. With more than 20 items, use Previous / Next.
+8. In Supabase (SQL editor, role anon), `select * from feedback` is denied; as owner A you never see B's items.
+   Try to edit `star_rating` or `message` of your own item through the API: "permission denied".
+
+## C. CSV export
+1. **Export this view (CSV)** and **Export everything (CSV)**. Open in Excel/Sheets: dates are in your
+   business time zone, each survey question is a column, contact columns are filled only for opt-ins.
+2. Submit feedback whose message is `=HYPERLINK("http://example.com","click")`, export again: the cell shows
+   the text with a leading `'` and does NOT become a link or formula.
+
+## D. Low-rating alerts (after an email provider is connected)
+1. Settings: the "Email me when someone leaves a low rating" box is on by default; untick it to stop alerts.
+2. Submit a 1-3 star with a message: one email arrives with the stars, the message/answers and an
+   inbox link. Edit the same feedback again: no second email. A bare star tap or a 4-5 star: no email.
+3. Submit 11+ low-rated items within an hour: at most 10 emails. All items are still saved.
+4. Put `<script>alert(1)</script>` in a message: the email shows it as plain text.
+5. The email never contains the customer's name or email.
+
+## E. Legal pages and footer
+1. `/privacy` and `/terms` show a yellow DRAFT banner and [BRACKETED] placeholders.
+2. The public review page footer links to both.
+
+## F. Google search limits
+1. In Settings, search for your business 21 times in an hour: the 21st says you've searched a lot.
+2. (Hard to trigger by hand) after 300 searches in a day across all accounts, search says it's busy, try tomorrow.

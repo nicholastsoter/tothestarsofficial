@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { readableTextColor } from '../../lib/color'
 import { googleReviewLink } from '../../lib/links'
 import { fetchPublicPage, newVisitToken, publicConfigured, sendEvent, sendFeedback, type PublicPage } from '../../lib/publicApi'
-import { extraFor, firstMissingRequired, toAnswerPayload, type AnswerMap, type PublicQuestion } from '../../lib/survey'
+import { extraFor, firstMissingRequired, pruneAnswers, toAnswerPayload, type AnswerMap } from '../../lib/survey'
 import { getTurnstileToken, turnstileSiteKey } from '../../lib/turnstile'
+import { QuestionField } from './QuestionField'
 
 type Load = { state: 'loading' } | { state: 'missing' } | { state: 'error' } | { state: 'ready'; page: PublicPage }
 type Contact = { consent: boolean; name: string; email: string }
@@ -58,18 +59,37 @@ export default function PublicReviewPage() {
       </Shell>
     )
   }
-  return <ReviewFlow page={load.page} />
+  const refreshPage = async () => {
+    try {
+      const fresh = await fetchPublicPage(slug)
+      if (fresh) {
+        loadedSlug.current = fresh.slug
+        setLoad({ state: 'ready', page: fresh })
+      }
+      return fresh
+    } catch {
+      return null
+    }
+  }
+  return <ReviewFlow page={load.page} onRefreshPage={refreshPage} />
 }
 
 function Shell({ children }: { children: ReactNode }) {
   return (
     <main className="flex min-h-screen justify-center bg-slate-50 px-4 py-6">
-      <div className="w-full max-w-md">{children}</div>
+      <div className="w-full max-w-md">
+        {children}
+        <footer className="mt-8 pb-4 text-center text-xs text-slate-500">
+          <Link to="/privacy" className="underline underline-offset-2">Privacy</Link>
+          <span aria-hidden> · </span>
+          <Link to="/terms" className="underline underline-offset-2">Terms</Link>
+        </footer>
+      </div>
     </main>
   )
 }
 
-function ReviewFlow({ page }: { page: PublicPage }) {
+function ReviewFlow({ page, onRefreshPage }: { page: PublicPage; onRefreshPage: () => Promise<PublicPage | null> }) {
   const color = page.brand_color
   const onColor = readableTextColor(color)
   const googleLink = googleReviewLink(page.place_id)
@@ -90,6 +110,8 @@ function ReviewFlow({ page }: { page: PublicPage }) {
   const chain = useRef<Promise<unknown>>(Promise.resolve())
   const queued = useRef(false)
   const viewed = useRef<string | null>(null)
+  const staleSurvey = useRef(false)
+  const [notice, setNotice] = useState<string | null>(null)
 
   useEffect(() => {
     if (viewed.current === page.slug) return
@@ -112,10 +134,28 @@ function ReviewFlow({ page }: { page: PublicPage }) {
         turnstileToken,
         honeypot: honeypot.current?.value ?? '',
       })
+      if (!res.ok && res.error === 'invalid_answers') staleSurvey.current = true
       return res.ok
     } catch {
       return false
     }
+  }
+
+  /** The owner changed the survey while this customer was answering it: reload the current
+   *  questions, keep everything that still fits, and ask the customer to send again. */
+  async function recoverFromStaleSurvey() {
+    staleSurvey.current = false
+    const fresh = await onRefreshPage()
+    if (!fresh) return false
+    const { answers: kept, dropped } = pruneAnswers(fresh.questions, latest.current.answers)
+    latest.current = { ...latest.current, answers: kept }
+    setAnswers(kept)
+    setNotice(
+      dropped > 0
+        ? 'The survey was just updated, so a few answers no longer apply. Please check your answers and send again.'
+        : 'The survey was just updated. Please check your answers and send again.',
+    )
+    return true
   }
 
   /** Saves one at a time; taps that arrive while one is waiting collapse into a single save. */
@@ -144,7 +184,7 @@ function ReviewFlow({ page }: { page: PublicPage }) {
     }
     setRating(n)
     sendEvent(page.slug, 'star_click', n)
-    void save() // runs in the background; the Google link below never waits for it
+    void save().then(() => staleSurvey.current && recoverFromStaleSurvey()) // background; the Google link never waits for it
   }
 
   async function onSubmitExtras(e: FormEvent) {
@@ -154,8 +194,10 @@ function ReviewFlow({ page }: { page: PublicPage }) {
       const missing = firstMissingRequired(page.questions, answers)
       if (missing) return setFormError('Please answer the questions marked with *, or clear the form to skip it.')
     }
+    setNotice(null)
     setStatus('sending')
     const ok = await save()
+    if (!ok && staleSurvey.current && (await recoverFromStaleSurvey())) return setStatus('idle')
     setStatus(ok ? 'sent' : 'error')
   }
 
@@ -238,6 +280,7 @@ function ReviewFlow({ page }: { page: PublicPage }) {
               <input ref={honeypot} type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 opacity-0" />
 
               {formError && <p role="alert" className="text-sm text-red-700">{formError}</p>}
+              {notice && <p role="status" className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900 ring-1 ring-amber-200">{notice}</p>}
               {status === 'sent' && <p role="status" className="text-sm text-green-700">Thank you! Your feedback was sent.</p>}
               {status === 'error' && (
                 <p role="alert" className="text-sm text-red-700">We couldn't send your feedback just now. Please try again in a moment.</p>
@@ -306,60 +349,6 @@ function StarPicker({ value, color, onChange }: { value: number | null; color: s
         </button>
       ))}
     </div>
-  )
-}
-
-function QuestionField({ q, value, color, onChange }: { q: PublicQuestion; value: string | number | undefined; color: string; onChange: (v: string | number | undefined) => void }) {
-  const label = (
-    <span className="mb-1 block text-sm font-medium">
-      {q.prompt}
-      {q.required && <span aria-hidden> *</span>}
-    </span>
-  )
-  const box = 'block w-full rounded-lg border-0 p-3 text-sm ring-1 ring-slate-300 focus:ring-2 focus:outline-none'
-
-  if (q.type === 'short_text') {
-    return (
-      <label className="block">
-        {label}
-        <input type="text" maxLength={300} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className={box} required={q.required} />
-      </label>
-    )
-  }
-  if (q.type === 'long_text') {
-    return (
-      <label className="block">
-        {label}
-        <textarea rows={3} maxLength={2000} value={(value as string) ?? ''} onChange={(e) => onChange(e.target.value)} className={box} />
-      </label>
-    )
-  }
-  if (q.type === 'multiple_choice') {
-    return (
-      <fieldset>
-        <legend>{label}</legend>
-        <div className="space-y-1.5">
-          {(q.options ?? []).map((o) => (
-            <label key={o} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1 ring-slate-200 has-[:checked]:bg-slate-50 has-[:checked]:ring-slate-400">
-              <input type="radio" name={q.id} checked={value === o} onChange={() => onChange(o)} />
-              {o}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-    )
-  }
-  return (
-    <fieldset>
-      <legend>{label}</legend>
-      <div className="flex gap-1" role="radiogroup">
-        {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} type="button" role="radio" aria-checked={value === n} aria-label={`${n} out of 5`} onClick={() => onChange(value === n ? undefined : n)} className="rounded p-0.5">
-            <span aria-hidden className="text-3xl leading-none" style={{ color: typeof value === 'number' && n <= value ? color : '#cbd5e1' }}>★</span>
-          </button>
-        ))}
-      </div>
-    </fieldset>
   )
 }
 
