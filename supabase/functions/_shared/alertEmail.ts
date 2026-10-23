@@ -22,7 +22,8 @@ const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;'
 export const escapeHtml = (s: string) => s.replace(/[&<>"'`]/g, (c) => ESCAPES[c])
 
 /** Collapses to one line (no newlines can sneak into a subject) and caps the length. */
-const oneLine = (s: string, max = 80) => s.replace(/[\r\n\u2028\u2029\t]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
+// \s covers \r, \n, \t and the Unicode line/paragraph separators, so no kind of line break survives
+const oneLine = (s: string, max = 80) => s.replace(/\s+/g, ' ').trim().slice(0, max)
 
 const answerText = (v: unknown) => (typeof v === 'string' ? v : typeof v === 'number' ? `${v} out of 5` : '')
 

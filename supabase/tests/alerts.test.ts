@@ -47,6 +47,8 @@ describe('buildAlertEmail', () => {
     const e = buildAlertEmail(claim({ business_name: 'Biz\r\nBcc: attacker@evil.com\nSubject: hacked' }), 'https://app.example.com/inbox')
     expect(e.subject).not.toMatch(/[\r\n]/)
     expect(e.subject.length).toBeLessThan(120)
+    const sep = buildAlertEmail(claim({ business_name: `A${String.fromCharCode(0x2028)}B${String.fromCharCode(0x2029)}C\tD` }), 'https://app.example.com/inbox')
+    expect(sep.subject).toBe('New 2 stars feedback for A B C D')
   })
 
   it('handles message-only, answers-only and rating answers; never claims more than 5 stars', () => {
