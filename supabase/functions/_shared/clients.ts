@@ -63,6 +63,18 @@ export function createFindBusinessId(baseUrl: string, serviceKey: string, f: Fet
   }
 }
 
+/** The caller's OWN business id and Google Place ID, looked up with the service key by the verified user id.
+ *  The Place ID always comes from here, never from anything the browser sends. */
+export function createFindOwnBusiness(baseUrl: string, serviceKey: string, f: FetchLike = fetch) {
+  return async (userId: string): Promise<{ id: string; place_id: string | null } | null> => {
+    if (!UUID.test(userId)) throw new Error('bad user id')
+    const res = await f(`${baseUrl}/rest/v1/businesses?owner_user_id=eq.${userId}&select=id,place_id`, { headers: serviceHeaders(serviceKey) })
+    if (!res.ok) throw new Error(`business lookup failed with status ${res.status}`)
+    const rows = (await res.json()) as { id: string; place_id: string | null }[]
+    return rows[0] ?? null
+  }
+}
+
 /** The owner's business name (for the test email), looked up with the service key by verified user id. */
 export function createFindBusinessName(baseUrl: string, serviceKey: string, f: FetchLike = fetch) {
   return async (userId: string): Promise<string | null> => {

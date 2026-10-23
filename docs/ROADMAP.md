@@ -96,15 +96,33 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
 - **No dark theme yet:** the chart colours are the validated light-surface values.
 - **Seed script** uses its own fake business and login (not your real business) so fake rows can never mix with real ones; events can't carry a label, which is why it is a separate business.
 
-## Google rating panel: decision needed
+## Google rating panel (decided: fetch once per page load)
 
-Google's pricing page (checked 23 Oct 2026): `rating` and `userRatingCount` are **Place Details Enterprise**
-fields. That SKU is **$20.00 per 1,000 requests**, with a **free cap of 1,000 requests per month**. Every
-field you ask for bills at the highest SKU among them, so asking for only these two fields still bills Enterprise.
-The 1,000 free requests are shared by every business on the app (about 33 a day).
-
-Options for WHEN to fetch, with the caps each implies, are in the Phase 4 report. Nothing for this panel
-has been built yet: the `google-rating` function, its caps and the panel wait for your pick.
+- **What it does:** the Analytics tab shows the business's live Google star rating and review count. It
+  fetches once when the page opens, has a manual Refresh button, and keeps the value in React state only:
+  never saved to the database, never written to localStorage/sessionStorage/IndexedDB/cookies, never logged.
+  A reload fetches again.
+- **Edge Function `google-rating`:** JWT verification on. The Place ID is read from the database for the
+  caller's own business, and anything in the request is ignored. It asks Google for only
+  `rating,userRatingCount` and returns only those two values.
+- **Caps (counters in `rate_limits`, counts only):** 5 per business per day and 30 per day across all
+  businesses. Both are the constants in `supabase/functions/_shared/limits.ts`, the one place to change
+  them. Windows are UTC days and reset together. The business's own allowance is checked first, so a
+  business that has used its day never spends the shared allowance. Messages: shared cap reached =
+  "Google rating is busy, try again tomorrow."; business cap reached = "You've reached today's limit...".
+- **Cost:** `rating` and `userRatingCount` are billed as Place Details **Enterprise**: **$20.00 per 1,000
+  requests**, with **1,000 free requests per month** for the whole app (about 33 a day; checked on Google's
+  pricing page, 23 Oct 2026). The global cap of 30 a day stays inside the free allowance.
+  **Cost watch:** each request beyond the free 1,000 a month costs about 2 cents, and the panel's cost grows with the number of
+  businesses opening Analytics. **Consider a paid tier before the app has more than a handful of
+  businesses** (roughly six or more active businesses will use up the free allowance). Raising the global cap to, say, 300 a day would be
+  about $160 a month if used fully. Raise it deliberately.
+- **Attribution:** outside a map, Google requires its logo or the text "Google Maps" (exact capitalisation,
+  not translated, Roboto 400, 12-16sp, #5E5E5E) and the Google content visually separated from ours. The panel
+  uses the text form in its own bordered card. The official logo is the more complete option if you want it
+  (Google supplies the files and style rules). The Phase 2 listing search now uses the same "Google Maps" wording.
+- **Setup:** it uses the same `GOOGLE_PLACES_API_KEY` secret as the listing search (the key is already
+  restricted to "Places API (New)", which covers Place Details). Deploy with `supabase functions deploy google-rating`.
 
 ## Launch checklist: do NOT onboard a real customer until all of these are true
 

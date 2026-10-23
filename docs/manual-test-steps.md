@@ -213,3 +213,52 @@ built yet, so there is nothing to test for it.
 ## F. Isolation
 1. While logged in as the fake user, the numbers are only the fake business's. Log in as your real account in another
    window: its numbers are unaffected. (The database tests also prove business A cannot see business B's numbers.)
+
+## G. Live Google rating panel
+
+Setup: `google-rating` deployed, `GOOGLE_PLACES_API_KEY` set (the same key as the listing search), and your
+real business has a Google listing connected (Settings). Use your REAL account for G1-G3, since the fake demo
+business has no listing.
+
+**G1. It loads once and shows its source**
+1. Open **Analytics**. A bordered card "Your rating on Google" checks Google by itself and shows the star rating,
+   "N Google reviews", **Fetched just now**, and "Data from Google Maps".
+2. Open Dashboard, then Analytics again: it does NOT fetch again (the label ages: "Fetched 2 minutes ago").
+   Reload the browser tab: it fetches again.
+3. Click **Refresh**: it fetches again and the label resets.
+
+**G2. Nothing is stored**
+1. With the panel showing a rating, open the browser's developer tools, Application tab: Local Storage, Session
+   Storage, IndexedDB and Cookies contain no rating or review count (only your sign-in).
+2. Supabase dashboard, Edge Functions, `google-rating`, Logs: only short lines such as a status number, never a rating.
+3. Supabase SQL editor: `select * from rate_limits where key like 'gratings:%';` shows counts only.
+
+**G3. Friendly errors**
+1. A business with no Google listing: the card says to connect one in Settings, and no request is made.
+
+**G4. Verify the per-business cap (5 a day)**
+1. Click Refresh until it stops: the page load counts as the 1st check, so the 6th check shows
+   "You've reached today's limit for checking your Google rating. It resets tomorrow." The earlier rating stays visible.
+2. Or shortcut it in the SQL editor (replace `<BUSINESS_ID>` with your business id from `select id from businesses`):
+   ```sql
+   insert into rate_limits (key, window_start, count)
+   values ('gratings:biz:<BUSINESS_ID>', date_trunc('day', now() at time zone 'UTC') at time zone 'UTC', 5)
+   on conflict (key, window_start) do update set count = 5;
+   ```
+   then click Refresh.
+3. A blocked business must not spend the shared allowance: note `select count from rate_limits where key = 'gratings:global';`
+   click Refresh several more times while blocked; the number does not change.
+
+**G5. Verify the shared cap (30 a day)**
+1. ```sql
+   insert into rate_limits (key, window_start, count)
+   values ('gratings:global', date_trunc('day', now() at time zone 'UTC') at time zone 'UTC', 30)
+   on conflict (key, window_start) do update set count = 30;
+   ```
+   Click Refresh: **"Google rating is busy, try again tomorrow."**
+2. Clean up so you don't block yourself: `delete from rate_limits where key like 'gratings:%';`
+
+**G6. Changing the caps**: edit the two numbers in `supabase/functions/_shared/limits.ts` and redeploy `google-rating`.
+
+**G7. Cost check**: Google Cloud Console, Billing, Reports (filter to Places API): "Place Details Enterprise" usage
+should match the number of checks you made. The first 1,000 requests each month are free.

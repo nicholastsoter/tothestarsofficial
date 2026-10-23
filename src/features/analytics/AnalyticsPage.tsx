@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useBusiness } from '../../contexts/BusinessContext'
 import { fetchContext, fetchDistribution, fetchSeries, fetchSummary, type Context, type SeriesRow, type Summary } from './api'
 import { AverageChart, DistributionChart, Funnel, VolumeChart } from './Charts'
+import GoogleRatingPanel from './GoogleRatingPanel'
 import ImprovementSection from './ImprovementSection'
 import KpiCard from './KpiCard'
 import {
@@ -105,6 +106,8 @@ export default function AnalyticsPage() {
           {ctx && <> · days follow your business time zone ({ctx.timezone})</>}
         </p>
       </div>
+
+      <GoogleRatingPanel />
 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Date range">
         {PRESETS.map((p) => (

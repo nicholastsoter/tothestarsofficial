@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import { AuthProvider } from './contexts/AuthContext'
 import { BusinessProvider } from './contexts/BusinessContext'
+import { GoogleRatingProvider } from './features/analytics/GoogleRatingContext'
 import DashboardPage from './features/onboarding/DashboardPage'
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
 import { FullPageSpinner, RedirectIfSignedIn, RequireAuth } from './features/auth/guards'
@@ -50,7 +51,9 @@ export default function AuthedApp() {
             <Route
               element={
                 <BusinessProvider>
-                  <AppLayout />
+                  <GoogleRatingProvider>
+                    <AppLayout />
+                  </GoogleRatingProvider>
                 </BusinessProvider>
               }
             >
