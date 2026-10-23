@@ -37,3 +37,50 @@ export function toAnswerPayload(questions: PublicQuestion[], answers: AnswerMap)
   }
   return out
 }
+
+export const MAX_QUESTIONS = 10
+export const MAX_OPTIONS = 10
+
+export interface QuestionDraft {
+  type: QuestionType
+  prompt: string
+  options: string[]
+  required: boolean
+}
+
+/** A human-readable problem with a question being edited, or null if it can be saved.
+ *  The database enforces the same rules; this just gives instant feedback. */
+export function validateQuestionDraft(d: QuestionDraft): string | null {
+  const prompt = d.prompt.trim()
+  if (!prompt) return 'Write the question first.'
+  if (prompt.length > 300) return 'Keep the question under 300 characters.'
+  if (d.type === 'multiple_choice') {
+    const opts = d.options.map((o) => o.trim())
+    if (opts.length < 2) return 'Add at least 2 answer options.'
+    if (opts.length > MAX_OPTIONS) return `Use at most ${MAX_OPTIONS} options.`
+    if (opts.some((o) => o === '')) return 'Fill in or remove the empty option.'
+    if (opts.some((o) => o.length > 100)) return 'Keep each option under 100 characters.'
+    if (new Set(opts).size !== opts.length) return 'Each option must be different.'
+  }
+  return null
+}
+
+/**
+ * The owner edited the survey while a customer was filling it in. Keeps only answers that still
+ * fit the CURRENT questions (same id, and for multiple choice an option that still exists),
+ * so the customer can resubmit without retyping everything.
+ */
+export function pruneAnswers(questions: PublicQuestion[], answers: AnswerMap): { answers: AnswerMap; dropped: number } {
+  const kept: AnswerMap = {}
+  let dropped = 0
+  for (const [id, value] of Object.entries(answers)) {
+    if (value === undefined) continue
+    const q = questions.find((x) => x.id === id)
+    const fits =
+      q !== undefined &&
+      (q.type === 'multiple_choice' ? typeof value === 'string' && (q.options ?? []).includes(value) : q.type === 'rating' ? typeof value === 'number' : typeof value === 'string')
+    if (fits) kept[id] = value
+    else dropped++
+  }
+  return { answers: kept, dropped }
+}

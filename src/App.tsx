@@ -5,6 +5,8 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 // downloads the login, dashboard or Supabase client code.
 const PublicReviewPage = lazy(() => import('./features/public-review/PublicReviewPage'))
 const AuthedApp = lazy(() => import('./AuthedApp'))
+const PrivacyPage = lazy(() => import('./features/legal/PrivacyPage'))
+const TermsPage = lazy(() => import('./features/legal/TermsPage'))
 
 export default function App() {
   return (
@@ -12,6 +14,8 @@ export default function App() {
       <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-slate-500" role="status">Loading…</div>}>
         <Routes>
           <Route path="/r/:slug" element={<PublicReviewPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage />} />
           <Route path="/*" element={<AuthedApp />} />
         </Routes>
       </Suspense>

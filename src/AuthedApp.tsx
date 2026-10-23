@@ -15,6 +15,8 @@ import { configError } from './lib/supabase'
 // heavier pages load only when opened (the QR page pulls in the QR and PDF libraries)
 const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
 const QrPage = lazy(() => import('./features/qr/QrPage'))
+const SurveyPage = lazy(() => import('./features/survey/SurveyPage'))
+const InboxPage = lazy(() => import('./features/inbox/InboxPage'))
 
 function ComingSoon({ title, phase }: { title: string; phase: number }) {
   return (
@@ -61,7 +63,8 @@ export default function AuthedApp() {
               }
             >
               <Route path="/dashboard" element={<DashboardPage />} />
-              <Route path="/survey" element={<ComingSoon title="Survey" phase={3} />} />
+              <Route path="/survey" element={<SurveyPage />} />
+              <Route path="/inbox" element={<InboxPage />} />
               <Route path="/analytics" element={<ComingSoon title="Analytics" phase={4} />} />
               <Route path="/qr" element={<QrPage />} />
               <Route path="/settings" element={<SettingsPage />} />

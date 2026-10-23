@@ -102,6 +102,46 @@ describe('rate limiting per account', () => {
   })
 })
 
+describe('limits (20 per account per hour, 300 per day overall)', () => {
+  it('defaults to 20 searches per account per hour', async () => {
+    const { call, fetchSpy } = setup({ getUser: async () => ({ id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) })
+    for (let i = 0; i < 20; i++) expect((await call({ query: 'joes pizza' })).status, `request ${i + 1}`).toBe(200)
+    const blocked = await call({ query: 'joes pizza' })
+    expect(blocked).toMatchObject({ status: 429, json: { error: 'rate_limited' } })
+    expect(fetchSpy).toHaveBeenCalledTimes(20)
+  })
+
+  it('stops ALL accounts once the daily cap is reached, with a friendly "busy" code', async () => {
+    await db.query(`delete from public.rate_limits where key = 'places:global'`) // fresh day for this test
+    const users: Record<string, string> = { t1: 'b1111111-1111-4111-8111-111111111111', t2: 'b2222222-2222-4222-8222-222222222222', t3: 'b3333333-3333-4333-8333-333333333333' }
+    const { call, fetchSpy } = setup({ dailyCap: 2, perHour: 50, getUser: async (t) => (users[t] ? { id: users[t] } : null) })
+    expect((await call({ query: 'cafe one' }, 't1')).status).toBe(200)
+    expect((await call({ query: 'cafe two' }, 't2')).status).toBe(200)
+    const busy = await call({ query: 'cafe three' }, 't3')
+    expect(busy).toMatchObject({ status: 429, json: { error: 'search_busy' } })
+    expect(fetchSpy).toHaveBeenCalledTimes(2)
+    // a different account is blocked too, and the message is distinct from the per-account limit
+    expect((await call({ query: 'cafe four' }, 't1')).json).toEqual({ error: 'search_busy' })
+  })
+
+  it("doesn't let a rate-limited account use up the global cap", async () => {
+    const id = 'c4444444-4444-4444-8444-444444444444'
+    const { call } = setup({ perHour: 1, dailyCap: 1000, getUser: async () => ({ id }) })
+    await call({ query: 'cafe one' })
+    const globalBefore = await db.query<{ count: number }>(`select coalesce(sum(count), 0)::int as count from public.rate_limits where key = 'places:global'`)
+    for (let i = 0; i < 5; i++) expect((await call({ query: 'cafe again' })).json).toEqual({ error: 'rate_limited' })
+    const globalAfter = await db.query<{ count: number }>(`select coalesce(sum(count), 0)::int as count from public.rate_limits where key = 'places:global'`)
+    expect(globalAfter.rows[0].count).toBe(globalBefore.rows[0].count)
+  })
+
+  it('counts the global cap per UTC day (a one-day window)', async () => {
+    const { call } = setup({ getUser: async () => ({ id: 'd5555555-5555-4555-8555-555555555555' }) })
+    await call({ query: 'cafe window' })
+    const r = await db.query<{ seconds: number }>(`select extract(epoch from (select max(window_start) from public.rate_limits where key = 'places:global'))::bigint % 86400 as seconds`)
+    expect(Number(r.rows[0].seconds)).toBe(0) // windows start at 00:00 UTC
+  })
+})
+
 describe('what is sent to and returned from Google', () => {
   it('sends the key in a header (never the URL) with a field mask, and nothing from the user but the query', async () => {
     const { call, fetchSpy } = setup()
