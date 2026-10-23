@@ -1,0 +1,23 @@
+# Minimal config for the Supabase CLI (supabase start). Written by hand without the CLI
+# available, so run `supabase start` once and fix anything it complains about.
+project_id = "to-the-stars-ratings"
+
+[auth]
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/dashboard", "http://localhost:5173/reset-password"]
+minimum_password_length = 8
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+# Visitors aren't logged in, so the public endpoint must not require a login token.
+# Its protection is the honeypot, the per-visitor rate limit and Turnstile (see the handler).
+[functions.submit-public]
+verify_jwt = false
+
+[functions.places-search]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
