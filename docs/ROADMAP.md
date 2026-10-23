@@ -72,13 +72,43 @@
   only where the customer opted in.
 - **Privacy policy and terms are DRAFTS** with a banner and placeholders. They need legal review.
 
-## Email provider decision (waiting on you)
+## Email provider: Resend (decided)
 
-See the options in the Phase 3 report. Wiring needs: the provider's API key as a Supabase secret,
-a verified sender, `APP_BASE_URL`, and a small `send` function (the email content is already built
-and tested in `supabase/functions/_shared/alertEmail.ts`).
+Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `RESEND_API_KEY`,
+`ALERT_FROM_EMAIL`, `APP_BASE_URL` (README, "Email alerts"). Behaviour:
+- Any missing or malformed secret means alerts are OFF: no alert is claimed, nothing is lost, and a later
+  customer edit sends it once the secrets are fixed.
+- If the provider call fails, the claim is handed back (retry on the next edit). Customers never see error
+  text, and only the HTTP status is ever logged, never the provider's response body.
+- The Settings "Send test alert" button (3 per hour per account) emails only the owner's own login address.
 
 ## Launch checklist: do NOT onboard a real customer until all of these are true
+
+### Production domain (do this first: other items depend on it)
+- [ ] **The production domain is final.** Do NOT print or hand out QR codes until it is: a QR code
+      encodes `https://<domain>/r/<slug>`, and old slugs only redirect within the same domain, so codes
+      printed for a domain you later abandon stop working. (Test QR codes made on the Vercel preview address are throwaway.)
+- [ ] Domain connected in Vercel; `VITE_PUBLIC_BASE_URL` set in Vercel to it; app redeployed; `/r/<slug>`,
+      `/login` and `/privacy` load on it.
+- [ ] Supabase Auth: Site URL and redirect URLs (`/dashboard`, `/reset-password`) point at the domain.
+- [ ] `APP_BASE_URL` Supabase secret set to the domain, so alert emails link to the right place.
+- [ ] Turnstile widget lists the domain; Supabase redirect list and CORS have no leftover test addresses.
+
+### Resend domain verification (so alerts can go to any owner)
+- [ ] Resend dashboard, **Domains**, **Add Domain**. A subdomain such as `mail.yourdomain.com` keeps
+      sending reputation separate from your main email.
+- [ ] Resend then shows the DNS records to add (the exact values are shown there and differ per account; copy
+      them exactly, don't retype). Typically: an **SPF** record (TXT, and a related MX on the sending subdomain),
+      a **DKIM** record (TXT named like `resend._domainkey`), and optionally a **DMARC** record (TXT at `_dmarc`,
+      start with `v=DMARC1; p=none;` and tighten later).
+- [ ] Add them at wherever the domain's DNS is managed (your registrar, Cloudflare, Vercel DNS, etc.), then click **Verify** in
+      Resend. It can take minutes up to a few hours. All records must show "Verified".
+- [ ] Set `ALERT_FROM_EMAIL` to an address on that domain (e.g. `To The Stars <alerts@mail.yourdomain.com>`).
+      No code change or redeploy is needed beyond the secret.
+- [ ] Optional hardening: create a new Resend API key restricted to that domain and replace `RESEND_API_KEY`; delete the old one.
+- [ ] From Settings, **Send test alert** to a Gmail/Outlook address and confirm it lands in the inbox (not spam),
+      then run section D of `docs/manual-test-steps.md`.
+
 
 - [ ] Privacy policy and Terms pages are live and linked from the public review page and signup
       (reviewed by a lawyer; they must cover optional contact details, the Place-ID-only rule,

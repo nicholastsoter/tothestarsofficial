@@ -21,3 +21,6 @@ verify_jwt = true
 
 [functions.delete-account]
 verify_jwt = true
+
+[functions.send-test-alert]
+verify_jwt = true

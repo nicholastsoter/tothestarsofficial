@@ -1,3 +1,4 @@
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { Button, Card, Field, Notice } from '../../components/ui/ui'
@@ -5,6 +6,7 @@ import { useAuth } from '../../contexts/AuthContext'
 import { useBusiness, type BusinessPatch } from '../../contexts/BusinessContext'
 import { isHexColor } from '../../lib/color'
 import { validateSlug } from '../../lib/slug'
+import { supabase } from '../../lib/supabase'
 import DeleteAccount from './DeleteAccount'
 import GoogleListingPicker from './GoogleListingPicker'
 import LogoUploader from './LogoUploader'
@@ -14,6 +16,7 @@ export default function SettingsPage() {
   const { user } = useAuth()
   const [alertsBusy, setAlertsBusy] = useState(false)
   const [alertsError, setAlertsError] = useState<string | null>(null)
+  const [test, setTest] = useState<{ kind: 'idle' | 'sending' | 'ok' | 'error'; message?: string }>({ kind: 'idle' })
   const [name, setName] = useState('')
   const [address, setAddress] = useState('')
   const [color, setColor] = useState('#2563eb')
@@ -46,6 +49,21 @@ export default function SettingsPage() {
 
   const slugChanged = slug !== business.slug
   const alerts = business.alerts_enabled
+
+  // sends one clearly labelled test email to the owner's own login address
+  async function onSendTest() {
+    setTest({ kind: 'sending' })
+    const { data, error } = await supabase.functions.invoke('send-test-alert')
+    if (!error) return setTest({ kind: 'ok', message: `Test email sent to ${(data as { sent_to?: string } | null)?.sent_to ?? user?.email ?? 'you'}. It can take a minute; check spam too.` })
+    const status = error instanceof FunctionsHttpError ? error.context.status : 0
+    setTest({
+      kind: 'error',
+      message:
+        status === 429 ? 'You’ve sent a few test emails already. Please try again in an hour.'
+        : status === 503 ? 'Email alerts aren’t set up on the server yet.'
+        : 'We couldn’t send the test email. Please try again later.',
+    })
+  }
 
   // saved straight away: it's a preference, not part of the form below
   async function onToggleAlerts(next: boolean) {
@@ -134,6 +152,14 @@ export default function SettingsPage() {
               </span>
             </label>
             {alertsError && <p role="alert" className="mt-2 text-xs text-red-700">{alertsError}</p>}
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <button type="button" onClick={onSendTest} disabled={test.kind === 'sending'} className="rounded-lg bg-white px-3 py-1.5 text-sm font-medium text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50 disabled:opacity-50">
+                {test.kind === 'sending' ? 'Sending…' : 'Send test alert'}
+              </button>
+              {test.kind === 'ok' && <span role="status" className="text-xs text-green-700">{test.message}</span>}
+              {test.kind === 'error' && <span role="alert" className="text-xs text-red-700">{test.message}</span>}
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Sends a clearly labelled sample email to your login address. A few per hour at most.</p>
           </div>
 
           {formError && <Notice tone="error">{formError}</Notice>}

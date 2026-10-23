@@ -63,6 +63,17 @@ export function createFindBusinessId(baseUrl: string, serviceKey: string, f: Fet
   }
 }
 
+/** The owner's business name (for the test email), looked up with the service key by verified user id. */
+export function createFindBusinessName(baseUrl: string, serviceKey: string, f: FetchLike = fetch) {
+  return async (userId: string): Promise<string | null> => {
+    if (!UUID.test(userId)) throw new Error('bad user id')
+    const res = await f(`${baseUrl}/rest/v1/businesses?owner_user_id=eq.${userId}&select=name`, { headers: serviceHeaders(serviceKey) })
+    if (!res.ok) throw new Error(`business lookup failed with status ${res.status}`)
+    const rows = (await res.json()) as { name: string }[]
+    return rows[0]?.name ?? null
+  }
+}
+
 /** Deletes every file under logos/<businessId>/ through the Storage API (deleting database rows
  *  alone would leave the actual files behind). */
 export function createDeleteLogos(baseUrl: string, serviceKey: string, f: FetchLike = fetch) {

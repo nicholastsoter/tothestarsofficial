@@ -65,7 +65,27 @@ ${
   return { to: claim.to_email, subject, html, text }
 }
 
-/** Wires the builder to whichever email provider is chosen: `send` is the provider's call. */
-export function createAlertSender(send: (email: AlertEmail) => Promise<void>, inboxUrl: string) {
-  return (claim: AlertClaim) => send(buildAlertEmail(claim, inboxUrl))
+/** A clearly labelled test email for the Settings "Send test alert" button. Uses made-up sample
+ *  content only: no real customer data, and it says so in the subject, the body and the plain text. */
+export function buildTestAlertEmail(toEmail: string, businessName: string, inboxUrl: string): AlertEmail {
+  const sample = buildAlertEmail(
+    {
+      feedback_id: 'test',
+      to_email: toEmail,
+      business_name: businessName,
+      star_rating: 2,
+      message: 'This is a sample message so you can see what a low-rating alert looks like.',
+      answers: [{ prompt: 'What fell short? (sample)', answer: 'Wait time' }],
+      created_at: new Date().toISOString(),
+    },
+    inboxUrl,
+  )
+  const banner =
+    '<p style="margin:0 0 16px;padding:10px 12px;background:#fef3c7;color:#78350f;border-radius:8px;font-weight:600">TEST EMAIL: nothing happened at your business. This was sent from Settings to check that alerts reach you.</p>'
+  return {
+    to: toEmail,
+    subject: `[TEST] ${sample.subject}`,
+    html: sample.html.replace('<h2 ', `${banner}<h2 `),
+    text: `TEST EMAIL: nothing happened at your business. This was sent from Settings to check that alerts reach you.\n\n${sample.text}`,
+  }
 }

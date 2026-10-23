@@ -124,13 +124,38 @@ business (Phase 2). The alert email is NOT connected yet, so skip section D unti
 2. Submit feedback whose message is `=HYPERLINK("http://example.com","click")`, export again: the cell shows
    the text with a leading `'` and does NOT become a link or formula.
 
-## D. Low-rating alerts (after an email provider is connected)
-1. Settings: the "Email me when someone leaves a low rating" box is on by default; untick it to stop alerts.
-2. Submit a 1-3 star with a message: one email arrives with the stars, the message/answers and an
-   inbox link. Edit the same feedback again: no second email. A bare star tap or a 4-5 star: no email.
-3. Submit 11+ low-rated items within an hour: at most 10 emails. All items are still saved.
-4. Put `<script>alert(1)</script>` in a message: the email shows it as plain text.
-5. The email never contains the customer's name or email.
+## D. Low-rating alerts (Resend)
+
+Setup first: the three email secrets are set (README, "Email alerts") and `submit-public` plus
+`send-test-alert` are deployed. While you're still on the Resend test sender, Resend only delivers to
+the email address of your own Resend account (as I understand it; confirm in Resend's docs), so
+log in to the app with that same address for these tests.
+
+**D1. Test button (no review needed)**
+1. Settings, "Email me when someone leaves a low rating" box, click **Send test alert**.
+2. Within a minute an email arrives at your login address. Subject starts with **[TEST]**; the body has a
+   yellow "TEST EMAIL: nothing happened at your business" banner, a sample 2-star message and an
+   "Open your inbox" button (which goes to your app's `/inbox`).
+3. Click it 4 times quickly: the 4th says you've sent a few already (limit: 3 an hour).
+4. Break a secret on purpose (e.g. set `RESEND_API_KEY` to junk): the button says it couldn't send, with no
+   technical details. Set an empty/missing secret: it says email alerts aren't set up on the server. Fix it again.
+
+**D2. Real alert flow**
+1. On your public page (private window), tap 2 stars. Nothing is emailed yet (a bare star tap).
+2. Type a message (or answer a survey question) and Send: one email arrives with the star rating, your
+   message and answers, and an inbox link. The email never shows a customer name or email, even if you
+   ticked "OK to contact me".
+3. Edit the same feedback and send again: **no second email**.
+4. A 4-5 star with a message: no email. Switch the Settings box off, submit a new 2-star with a message:
+   no email. Switch it back on.
+5. Put `<script>alert(1)</script>` in a message: the email shows it as plain text.
+6. Submit 11+ low-rated items with messages within an hour: at most 10 emails; all are saved in the Inbox.
+
+**D3. Failure safety**
+1. Set `RESEND_API_KEY` to a wrong value, submit a 2-star with a message: the customer still sees success
+   and the item is in your Inbox, no email goes out. Fix the key, edit that same feedback: the email now arrives.
+2. In the Supabase dashboard, Edge Functions, `submit-public`, Logs: you see only short messages such as
+   "alert email failed: Error". No keys, no provider response text.
 
 ## E. Legal pages and footer
 1. `/privacy` and `/terms` show a yellow DRAFT banner and [BRACKETED] placeholders.

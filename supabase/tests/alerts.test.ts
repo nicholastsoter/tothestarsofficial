@@ -1,6 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
-import { buildAlertEmail, createAlertSender, escapeHtml, type AlertClaim } from '../functions/_shared/alertEmail'
+import { buildAlertEmail, escapeHtml, type AlertClaim } from '../functions/_shared/alertEmail'
 import { createSubmitPublicHandler, type SubmitPublicDeps } from '../functions/submit-public/handler'
 import { createDb, createTenant, dbContains, pgRpc, type Tenant } from './helpers'
 
@@ -72,13 +72,6 @@ describe('buildAlertEmail', () => {
 
   it('escapeHtml covers the dangerous characters', () => {
     expect(escapeHtml(`<>&"'\``)).toBe('&lt;&gt;&amp;&quot;&#39;&#96;')
-  })
-
-  it('createAlertSender hands the built email to the provider', async () => {
-    const send = vi.fn(async () => {})
-    await createAlertSender(send, 'https://a.test/inbox')(claim())
-    expect(send).toHaveBeenCalledTimes(1)
-    expect((send.mock.calls[0] as unknown as [{ to: string }])[0].to).toBe('owner@example.com')
   })
 })
 
