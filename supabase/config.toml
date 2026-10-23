@@ -24,3 +24,6 @@ verify_jwt = true
 
 [functions.send-test-alert]
 verify_jwt = true
+
+[functions.google-rating]
+verify_jwt = true

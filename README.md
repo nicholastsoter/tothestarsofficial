@@ -20,14 +20,35 @@ public review page, **survey editor with live preview, feedback inbox (filters, 
 CSV export), response view, and low-rating email alerts (built, provider not connected yet)**.
 Draft privacy and terms pages live at `/privacy` and `/terms`.
 
+**Phase 4: Analytics.** Date-range picker, KPI cards with previous-period comparison, charts, a
+funnel, goal progress and before/after tracking, all computed in the database (security-invoker
+functions, so each owner only ever sees their own numbers). The live Google rating panel is
+fetched live once per page load, never stored (see `docs/ROADMAP.md`, "Google rating panel").
+
+## Demo data for the Analytics charts
+
+A script creates a clearly-labelled FAKE business (its own fake login, separate from your real
+business) with ~120 days of believable activity. It only runs against the project you name.
+In your own terminal (never paste these values into chat):
+
+```bash
+export SUPABASE_URL="https://<your-project-ref>.supabase.co"
+export SUPABASE_SERVICE_ROLE_KEY="<Supabase dashboard, Project Settings, API, service_role>"
+node scripts/seed-test-data.mjs --project-ref <your-project-ref>            # dry run, writes nothing
+node scripts/seed-test-data.mjs --project-ref <your-project-ref> --apply    # creates it, prints the fake login once
+node scripts/seed-test-data.mjs --project-ref <your-project-ref> --delete   # removes it all again
+```
+
+It refuses to run unless `SUPABASE_URL` is exactly `https://<ref>.supabase.co` for the ref you pass.
+
 ## Setup
 
 ### 1. Supabase
-1. Create a project. Apply `supabase/migrations/*.sql` in order (0001 to 0007) (SQL editor, or `supabase db push`).
+1. Create a project. Apply `supabase/migrations/*.sql` in order (0001 to 0008) (SQL editor, or `supabase db push`).
 2. Authentication, URL Configuration: Site URL `http://localhost:5173`; Redirect URLs
    `http://localhost:5173/dashboard` and `http://localhost:5173/reset-password`.
 3. Authentication, Email: keep "Confirm email" ON.
-4. Deploy the four Edge Functions (`submit-public`, `places-search`, `delete-account`, `send-test-alert`) from `supabase/functions/` (`supabase functions deploy`, or
+4. Deploy the five Edge Functions (`submit-public`, `places-search`, `delete-account`, `send-test-alert`, `google-rating`) from `supabase/functions/` (`supabase functions deploy`, or
    paste the bundles from `npm run bundle:functions`). `submit-public` must have JWT verification
    **off** (`supabase/config.toml` already says so); the other two keep it on.
 
@@ -36,7 +57,7 @@ Dashboard, Edge Functions, Secrets (or `supabase secrets set NAME=value`):
 
 | Secret | What it is | How to get it |
 |---|---|---|
-| `GOOGLE_PLACES_API_KEY` | Lets `places-search` call Google | see "Google Places key" below |
+| `GOOGLE_PLACES_API_KEY` | Lets `places-search` and `google-rating` call Google (same key) | see "Google Places key" below |
 | `TURNSTILE_SECRET_KEY` | Lets `submit-public` check bot-test tokens | Cloudflare, see below |
 | `IP_HASH_SECRET` | Scrambles visitor IPs before they are counted | run `openssl rand -hex 32` and paste the result |
 

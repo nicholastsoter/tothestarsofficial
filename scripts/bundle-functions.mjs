@@ -4,7 +4,7 @@
 import { build } from 'esbuild'
 import { mkdirSync } from 'node:fs'
 
-for (const name of ['submit-public', 'places-search', 'delete-account', 'send-test-alert']) {
+for (const name of ['submit-public', 'places-search', 'delete-account', 'send-test-alert', 'google-rating']) {
   mkdirSync(`dist-functions/${name}`, { recursive: true })
   await build({
     entryPoints: [`supabase/functions/${name}/index.ts`],

@@ -3,3 +3,21 @@
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+/* Chart colours: the validated reference palette (blue, orange) plus neutral inks. The app has no
+   dark theme yet, so these are the light-surface values. */
+.viz {
+  --viz-surface: #ffffff;
+  --viz-text: #0b0b0b;
+  --viz-text-2: #52514e;
+  --viz-grid: #e7e6e3;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-muted: #a3a29d;
+  --ordinal-1: #86b6ef;
+  --ordinal-2: #3987e5;
+  --ordinal-3: #256abf;
+  --ordinal-4: #184f95;
+  --good: #0ca30c;
+  --critical: #d03b3b;
+}

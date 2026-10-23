@@ -82,6 +82,48 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
   text, and only the HTTP status is ever logged, never the provider's response body.
 - The Settings "Send test alert" button (3 per hour per account) emails only the owner's own login address.
 
+## Phase 4 assumptions I made (change any of them)
+
+- **Days are the business's local days** (`businesses.timezone`), including across daylight-saving changes. Weeks start on Monday.
+- **Ratings come from feedback rows** (one per visit), never from `star_click` events. Events are used only for page views, star taps (funnel), survey completions and Google clicks.
+- **Click-through rate** is Google link clicks divided by page views, as you specified. Because the link appears twice on a page and people can click repeatedly, it can exceed 100%; a footnote says so.
+- **Trend arrows need at least 5 ratings in BOTH periods**, for every card (one rule, one explanation line). Below that the number shows with no arrow and the reason.
+- **Average rating line:** dots for buckets with fewer than 5 ratings are hollow.
+- **"Ratings mix over time"** groups stars into happy (4-5), neutral (3) and unhappy (1-2) to keep the stack readable; the tooltip and table give every star.
+- **Before/after** compares equal windows (up to 90 days) on each side of `tracking_start_date`. Since all our data begins when the review page is first used, "before" data exists only if the owner sets the start date later than their first ratings; the page says so instead of charting nothing.
+- **Goal progress** = average rating of the last 30 days / goal, capped at 100%.
+- **Tracking start date** and **goal** are editable in Settings (both were already columns).
+- **No dark theme yet:** the chart colours are the validated light-surface values.
+- **Seed script** uses its own fake business and login (not your real business) so fake rows can never mix with real ones; events can't carry a label, which is why it is a separate business.
+
+## Google rating panel (decided: fetch once per page load)
+
+- **What it does:** the Analytics tab shows the business's live Google star rating and review count. It
+  fetches once when the page opens, has a manual Refresh button, and keeps the value in React state only:
+  never saved to the database, never written to localStorage/sessionStorage/IndexedDB/cookies, never logged.
+  A reload fetches again.
+- **Edge Function `google-rating`:** JWT verification on. The Place ID is read from the database for the
+  caller's own business, and anything in the request is ignored. It asks Google for only
+  `rating,userRatingCount` and returns only those two values.
+- **Caps (counters in `rate_limits`, counts only):** 5 per business per day and 30 per day across all
+  businesses. Both are the constants in `supabase/functions/_shared/limits.ts`, the one place to change
+  them. Windows are UTC days and reset together. The business's own allowance is checked first, so a
+  business that has used its day never spends the shared allowance. Messages: shared cap reached =
+  "Google rating is busy, try again tomorrow."; business cap reached = "You've reached today's limit...".
+- **Cost:** `rating` and `userRatingCount` are billed as Place Details **Enterprise**: **$20.00 per 1,000
+  requests**, with **1,000 free requests per month** for the whole app (about 33 a day; checked on Google's
+  pricing page, 23 Oct 2026). The global cap of 30 a day stays inside the free allowance.
+  **Cost watch:** each request beyond the free 1,000 a month costs about 2 cents, and the panel's cost grows with the number of
+  businesses opening Analytics. **Consider a paid tier before the app has more than a handful of
+  businesses** (roughly six or more active businesses will use up the free allowance). Raising the global cap to, say, 300 a day would be
+  about $160 a month if used fully. Raise it deliberately.
+- **Attribution:** outside a map, Google requires its logo or the text "Google Maps" (exact capitalisation,
+  not translated, Roboto 400, 12-16sp, #5E5E5E) and the Google content visually separated from ours. The panel
+  uses the text form in its own bordered card. The official logo is the more complete option if you want it
+  (Google supplies the files and style rules). The Phase 2 listing search now uses the same "Google Maps" wording.
+- **Setup:** it uses the same `GOOGLE_PLACES_API_KEY` secret as the listing search (the key is already
+  restricted to "Places API (New)", which covers Place Details). Deploy with `supabase functions deploy google-rating`.
+
 ## Launch checklist: do NOT onboard a real customer until all of these are true
 
 ### Production domain (do this first: other items depend on it)
@@ -127,6 +169,7 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
       including that no customer contact details appear in them.
 - [ ] Privacy policy and terms: drafts replaced by the lawyer-reviewed versions, banner removed,
       all [BRACKETS] filled in.
+- [ ] The fake demo account is deleted (`node scripts/seed-test-data.mjs --project-ref <ref> --delete`).
 - [ ] Account deletion tested end to end on the real project with a throwaway account.
 
 ## Phase 5 (not started)

@@ -164,3 +164,101 @@ log in to the app with that same address for these tests.
 ## F. Google search limits
 1. In Settings, search for your business 21 times in an hour: the 21st says you've searched a lot.
 2. (Hard to trigger by hand) after 300 searches in a day across all accounts, search says it's busy, try tomorrow.
+
+---
+
+# Phase 4 manual test steps (Analytics)
+
+Setup first: migration `0008` applied (the app's Analytics page calls it). The Google rating panel is not
+built yet, so there is nothing to test for it.
+
+## A. Get realistic data on screen (fake data, separate from your real business)
+1. In your own terminal set the two variables (values from Supabase, Project Settings, API; never paste them into chat):
+   `export SUPABASE_URL="https://<ref>.supabase.co"` and `export SUPABASE_SERVICE_ROLE_KEY="<service_role key>"`.
+2. Dry run first: `node scripts/seed-test-data.mjs --project-ref <ref>`. It prints the plan and writes nothing.
+3. Check the safety: set `SUPABASE_URL` to a different project's URL and run again with the same `--project-ref`:
+   it must refuse. So must running without `--project-ref`.
+4. Create it: `node scripts/seed-test-data.mjs --project-ref <ref> --apply`. It prints a fake login email and a
+   one-time password. The business is called "FAKE DATA: Test Business" and every message starts with `[FAKE]`.
+5. Log in to the app with that fake login (a private window keeps it apart from your real account) and open **Analytics**.
+6. When you're done: `node scripts/seed-test-data.mjs --project-ref <ref> --delete` removes the account and all its data.
+
+## B. Analytics page (as the fake user)
+1. Last 30 days is selected. Six cards show numbers with ▲ arrows and "vs previous 30 days". Charts fill in below.
+2. Click Last 7 days, Last 90 days, All time: numbers and charts change; the "Group by" menu only offers sensible choices
+   (e.g. no "Day" for 90 days). All time has no arrows and says there's no earlier period.
+3. Custom: pick an end date before the start date and Apply: you get an error. Pick a valid range: it loads, and the
+   comparison is the same number of days directly before it.
+4. On each chart click **View as table**: the same numbers appear as a table.
+5. Hover a bar or dot for a tooltip. Hollow dots on the average line mean fewer than 5 ratings in that bucket.
+6. Scroll to the funnel: page views, star taps, feedback with a message, Google clicks, each as a share of page views.
+7. Footnotes say page views are raw counts (no visitor ID).
+
+## C. Honest small numbers
+1. Log in as your REAL (new, nearly empty) business and open Analytics: numbers show, no arrows, one line explains
+   "too few ratings to call a trend", the goal card says it's a rough guide, and before/after says there isn't enough "before" data.
+2. A brand-new business with nothing shows "No activity in this period" and empty-chart messages, never blank charts.
+
+## D. Improvement tracking, goal, tracking start date
+1. As the fake user: "Improvement over time" shows goal progress (a bar and "4.0 of your 4.5 goal"), a before/after
+   comparison, and weekly/monthly average and mix charts. The note says this is customers who used the review page, not the full Google rating.
+2. Settings: set **Goal rating** to `6` (refused), `4.55` (refused), `4.5` (saved). Set **Tracking start date** to a future date (refused).
+   Move the tracking start date a few weeks earlier/later and reopen Analytics: the before/after windows move with it.
+3. Clear the goal (empty box) and save: Analytics says you haven't set a goal.
+
+## E. Time zones (optional)
+1. Change the fake business's time zone in Supabase (`businesses.timezone`) to `Pacific/Auckland`, reload Analytics:
+   the daily bars shift to the new local days and the subtitle names the zone. Set it back.
+
+## F. Isolation
+1. While logged in as the fake user, the numbers are only the fake business's. Log in as your real account in another
+   window: its numbers are unaffected. (The database tests also prove business A cannot see business B's numbers.)
+
+## G. Live Google rating panel
+
+Setup: `google-rating` deployed, `GOOGLE_PLACES_API_KEY` set (the same key as the listing search), and your
+real business has a Google listing connected (Settings). Use your REAL account for G1-G3, since the fake demo
+business has no listing.
+
+**G1. It loads once and shows its source**
+1. Open **Analytics**. A bordered card "Your rating on Google" checks Google by itself and shows the star rating,
+   "N Google reviews", **Fetched just now**, and "Data from Google Maps".
+2. Open Dashboard, then Analytics again: it does NOT fetch again (the label ages: "Fetched 2 minutes ago").
+   Reload the browser tab: it fetches again.
+3. Click **Refresh**: it fetches again and the label resets.
+
+**G2. Nothing is stored**
+1. With the panel showing a rating, open the browser's developer tools, Application tab: Local Storage, Session
+   Storage, IndexedDB and Cookies contain no rating or review count (only your sign-in).
+2. Supabase dashboard, Edge Functions, `google-rating`, Logs: only short lines such as a status number, never a rating.
+3. Supabase SQL editor: `select * from rate_limits where key like 'gratings:%';` shows counts only.
+
+**G3. Friendly errors**
+1. A business with no Google listing: the card says to connect one in Settings, and no request is made.
+
+**G4. Verify the per-business cap (5 a day)**
+1. Click Refresh until it stops: the page load counts as the 1st check, so the 6th check shows
+   "You've reached today's limit for checking your Google rating. It resets tomorrow." The earlier rating stays visible.
+2. Or shortcut it in the SQL editor (replace `<BUSINESS_ID>` with your business id from `select id from businesses`):
+   ```sql
+   insert into rate_limits (key, window_start, count)
+   values ('gratings:biz:<BUSINESS_ID>', date_trunc('day', now() at time zone 'UTC') at time zone 'UTC', 5)
+   on conflict (key, window_start) do update set count = 5;
+   ```
+   then click Refresh.
+3. A blocked business must not spend the shared allowance: note `select count from rate_limits where key = 'gratings:global';`
+   click Refresh several more times while blocked; the number does not change.
+
+**G5. Verify the shared cap (30 a day)**
+1. ```sql
+   insert into rate_limits (key, window_start, count)
+   values ('gratings:global', date_trunc('day', now() at time zone 'UTC') at time zone 'UTC', 30)
+   on conflict (key, window_start) do update set count = 30;
+   ```
+   Click Refresh: **"Google rating is busy, try again tomorrow."**
+2. Clean up so you don't block yourself: `delete from rate_limits where key like 'gratings:%';`
+
+**G6. Changing the caps**: edit the two numbers in `supabase/functions/_shared/limits.ts` and redeploy `google-rating`.
+
+**G7. Cost check**: Google Cloud Console, Billing, Reports (filter to Places API): "Place Details Enterprise" usage
+should match the number of checks you made. The first 1,000 requests each month are free.

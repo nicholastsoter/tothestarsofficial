@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import { AuthProvider } from './contexts/AuthContext'
 import { BusinessProvider } from './contexts/BusinessContext'
+import { GoogleRatingProvider } from './features/analytics/GoogleRatingContext'
 import DashboardPage from './features/onboarding/DashboardPage'
 import ForgotPasswordPage from './features/auth/ForgotPasswordPage'
 import { FullPageSpinner, RedirectIfSignedIn, RequireAuth } from './features/auth/guards'
@@ -17,15 +18,7 @@ const SettingsPage = lazy(() => import('./features/settings/SettingsPage'))
 const QrPage = lazy(() => import('./features/qr/QrPage'))
 const SurveyPage = lazy(() => import('./features/survey/SurveyPage'))
 const InboxPage = lazy(() => import('./features/inbox/InboxPage'))
-
-function ComingSoon({ title, phase }: { title: string; phase: number }) {
-  return (
-    <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold">{title}</h1>
-      <p className="mt-2 text-slate-600">This page is built in Phase {phase}.</p>
-    </div>
-  )
-}
+const AnalyticsPage = lazy(() => import('./features/analytics/AnalyticsPage'))
 
 function NotFound() {
   return <main className="flex min-h-screen items-center justify-center p-6 text-slate-600">Page not found.</main>
@@ -58,14 +51,16 @@ export default function AuthedApp() {
             <Route
               element={
                 <BusinessProvider>
-                  <AppLayout />
+                  <GoogleRatingProvider>
+                    <AppLayout />
+                  </GoogleRatingProvider>
                 </BusinessProvider>
               }
             >
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route path="/survey" element={<SurveyPage />} />
               <Route path="/inbox" element={<InboxPage />} />
-              <Route path="/analytics" element={<ComingSoon title="Analytics" phase={4} />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
               <Route path="/qr" element={<QrPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>

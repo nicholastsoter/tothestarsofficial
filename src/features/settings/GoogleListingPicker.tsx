@@ -140,7 +140,7 @@ export default function GoogleListingPicker() {
                   ))}
                 </ul>
               )}
-              {(results || searching) && <p className="text-xs text-slate-500">Powered by Google</p>}
+              {(results || searching) && <p className="text-xs text-slate-500">Data from <span translate="no" style={{ fontFamily: 'Roboto, Arial, sans-serif', fontWeight: 400, color: '#5E5E5E', whiteSpace: 'nowrap' }}>Google Maps</span></p>}
               {changing && (
                 <button type="button" onClick={() => { setChanging(false); setQuery('') }} className="text-sm text-slate-600 underline">
                   Cancel
