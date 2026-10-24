@@ -76,7 +76,7 @@ describe('access control', () => {
       `select proname, prosecdef, pg_get_function_arguments(oid) as args from pg_proc
         where pronamespace = 'public'::regnamespace and proname like 'analytics\\_%'`,
     )
-    expect(r.rows.map((x) => x.proname).sort()).toEqual(['analytics_before_after', 'analytics_context', 'analytics_distribution', 'analytics_summary', 'analytics_timeseries'])
+    expect(r.rows.map((x) => x.proname).sort()).toEqual(['analytics_before_after', 'analytics_context', 'analytics_distribution', 'analytics_google_ctr', 'analytics_summary', 'analytics_timeseries'])
     for (const f of r.rows) {
       expect(f.prosecdef, f.proname).toBe(false)
       expect(f.args ?? '', f.proname).not.toMatch(/business|owner|user/i)

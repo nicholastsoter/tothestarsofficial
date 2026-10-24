@@ -60,6 +60,13 @@ export async function fetchNewCount(): Promise<number> {
   return error ? 0 : Number(data ?? 0)
 }
 
+/** Like fetchNewCount, but a failure is an error, so the Overview can show "–" instead of a false zero. */
+export async function fetchAwaitingCount(): Promise<number> {
+  const { data, error } = await supabase.rpc('new_feedback_count')
+  if (error) throw new Error('Could not load feedback count')
+  return Number(data ?? 0)
+}
+
 /** Lets the side-nav badge refresh straight away after a status change or delete. */
 export const CHANGED_EVENT = 'feedback-changed'
 export const notifyChanged = () => window.dispatchEvent(new Event(CHANGED_EVENT))

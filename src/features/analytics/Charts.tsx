@@ -1,10 +1,10 @@
 // The charts. Specs followed: bars at most 24px with a 4px rounded data end; 2px lines; 8px dots with a
 // 2px surface ring; hairline solid gridlines; one y-axis per chart; text in ink tokens, never series colour.
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
-import type { SeriesRow } from './api'
+import type { CtrRow, SeriesRow } from './api'
 import ChartCard from './ChartCard'
 import { formatBucket, type Bucket } from './ranges'
-import { MIN_RATINGS_FOR_TREND, formatAvg, formatInt } from './trend'
+import { MIN_RATINGS_FOR_TREND, formatAvg, formatInt, formatPercent } from './trend'
 
 const AXIS = { fontSize: 11, fill: 'var(--viz-text-2)' }
 const GRID = { stroke: 'var(--viz-grid)', strokeWidth: 1, vertical: false } as const
@@ -23,12 +23,12 @@ function TooltipBox({ title, lines }: { title: string; lines: [string, string][]
 /** Fewer ticks when there are many buckets, so labels never collide. */
 const tickGap = (n: number) => (n > 24 ? 24 : n > 12 ? 12 : 4)
 
-export function VolumeChart({ rows, bucket }: { rows: SeriesRow[]; bucket: Bucket }) {
+export function VolumeChart({ rows, bucket, height = 240 }: { rows: SeriesRow[]; bucket: Bucket; height?: number }) {
   const data = rows.map((r) => ({ label: formatBucket(r.bucket_start, bucket), ratings: r.ratings }))
   const empty = rows.every((r) => r.ratings === 0) ? 'No ratings in this period yet. They appear here as customers tap a star.' : null
   return (
     <ChartCard title="Ratings collected" subtitle={`Ratings per ${bucket}`} empty={empty} table={{ headers: [bucket === 'month' ? 'Month' : bucket === 'week' ? 'Week starting' : 'Day', 'Ratings'], rows: data.map((d) => [d.label, d.ratings]) }}>
-      <div style={{ height: 240 }} role="img" aria-label="Column chart of ratings collected over time">
+      <div style={{ height }} role="img" aria-label="Column chart of ratings collected over time">
         <ResponsiveContainer>
           <BarChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: -12 }}>
             <CartesianGrid {...GRID} />
@@ -46,7 +46,7 @@ export function VolumeChart({ rows, bucket }: { rows: SeriesRow[]; bucket: Bucke
 interface DotProps { cx?: number; cy?: number; payload?: { n: number; avg: number | null } }
 
 /** Average rating over time. Buckets with fewer than 5 ratings get a hollow dot: real, but not much to go on. */
-export function AverageChart({ rows, bucket, goal, title = 'Average rating', subtitle }: { rows: SeriesRow[]; bucket: Bucket; goal?: number | null; title?: string; subtitle?: string }) {
+export function AverageChart({ rows, bucket, goal, title = 'Average rating', subtitle, height = 240 }: { rows: SeriesRow[]; bucket: Bucket; goal?: number | null; title?: string; subtitle?: string; height?: number }) {
   const data = rows.map((r) => ({ label: formatBucket(r.bucket_start, bucket), avg: r.avg_rating, n: r.ratings }))
   const empty = data.every((d) => d.avg === null) ? 'No ratings in this period yet.' : null
   const dot = ({ cx, cy, payload }: DotProps) =>
@@ -58,7 +58,7 @@ export function AverageChart({ rows, bucket, goal, title = 'Average rating', sub
     )
   return (
     <ChartCard title={title} subtitle={subtitle ?? `Average per ${bucket}. Hollow dots have fewer than ${MIN_RATINGS_FOR_TREND} ratings.${goal ? ` The orange line is your ${goal.toFixed(1)} goal.` : ''}`} empty={empty} table={{ headers: ['Period', 'Average', 'Ratings'], rows: data.map((d) => [d.label, formatAvg(d.avg, 2), d.n]) }}>
-      <div style={{ height: 240 }} role="img" aria-label="Line chart of average rating over time">
+      <div style={{ height }} role="img" aria-label="Line chart of average rating over time">
         <ResponsiveContainer>
           <LineChart data={data} margin={{ top: 8, right: 12, bottom: 0, left: -12 }}>
             <CartesianGrid {...GRID} />
@@ -143,6 +143,68 @@ export function MixChart({ rows, bucket }: { rows: SeriesRow[]; bucket: Bucket }
           </BarChart>
         </ResponsiveContainer>
       </div>
+    </ChartCard>
+  )
+}
+
+/**
+ * Of the people who picked N stars, how many tapped the Google link. We keep no visitor ID, so one person
+ * who taps the link twice would count twice; the database therefore counts at most one click per rating,
+ * which keeps every bar at 100% or less. Stars with fewer than 5 ratings are drawn hollow.
+ */
+export function GoogleCtrChart({ rows }: { rows: CtrRow[] }) {
+  const stars = rows.filter((r) => r.star >= 1)
+  const noStar = rows.find((r) => r.star === 0)?.clicks ?? 0
+  const data = [5, 4, 3, 2, 1].map((s) => {
+    const r = stars.find((x) => x.star === s) ?? { star: s, ratings: 0, clicks: 0, counted_clicks: 0, click_through: null }
+    return { ...r, label: `${s}★`, pct: r.click_through === null ? 0 : r.click_through * 100, small: r.ratings > 0 && r.ratings < MIN_RATINGS_FOR_TREND }
+  })
+  const totalRatings = data.reduce((a, d) => a + d.ratings, 0)
+  const capped = data.some((d) => d.clicks > d.ratings)
+  const small = data.some((d) => d.small)
+  const orphan = data.some((d) => d.ratings === 0 && d.clicks > 0)
+  return (
+    <ChartCard
+      title="Google click-through by star rating"
+      subtitle="Of the customers who picked each star, the share who tapped the Google review link"
+      empty={totalRatings === 0 ? 'No ratings in this period yet.' : null}
+      table={{
+        headers: ['Stars', 'Ratings', 'Google clicks (raw)', 'Clicks counted', 'Click-through'],
+        rows: [
+          ...data.map((d) => [d.label, d.ratings, d.clicks, d.counted_clicks, d.click_through === null ? 'no ratings' : `${formatPercent(d.click_through)}${d.small ? ' (few ratings)' : ''}`]),
+          ...(noStar > 0 ? [['No star recorded', '–', noStar, '–', '–']] : []),
+        ],
+      }}
+    >
+      <ul className="space-y-3" aria-label="Google click-through by star rating">
+        {data.map((d) => (
+          <li key={d.star}>
+            <div className="mb-1 flex items-baseline justify-between text-xs">
+              <span style={{ color: 'var(--viz-text)' }}>{d.label}</span>
+              <span className="tabular-nums" style={{ color: 'var(--viz-text-2)' }}>
+                {d.click_through === null ? 'no ratings' : `${formatPercent(d.click_through)} · ${formatInt(d.counted_clicks)} of ${formatInt(d.ratings)}`}
+                {d.small && ' · few ratings'}
+              </span>
+            </div>
+            <div className="h-4 rounded bg-slate-100">
+              <div
+                className="h-4 rounded"
+                style={{
+                  width: `${Math.min(100, Math.max(d.pct, d.counted_clicks > 0 ? 1.5 : 0))}%`,
+                  background: d.small ? 'var(--viz-surface)' : 'var(--series-1)',
+                  border: d.small ? '2px solid var(--series-1)' : undefined,
+                }}
+              />
+            </div>
+          </li>
+        ))}
+      </ul>
+      <p className="mt-3 text-xs" style={{ color: 'var(--viz-text-2)' }}>
+        {small && `Hollow bars: fewer than ${MIN_RATINGS_FOR_TREND} ratings, so treat the percentage as a hint. `}
+        {capped && 'Some stars had more clicks than ratings (people can tap the link more than once), so each star counts at most one click per rating. The table shows the raw clicks. '}
+        {orphan && 'A star with clicks but no ratings in this period has no percentage (nothing to divide by); its clicks are in the table. '}
+        {noStar > 0 && `${formatInt(noStar)} click${noStar === 1 ? '' : 's'} had no star recorded and ${noStar === 1 ? 'is' : 'are'} not shown in the bars. `}
+      </p>
     </ChartCard>
   )
 }

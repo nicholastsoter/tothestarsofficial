@@ -1,18 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useBusiness } from '../../contexts/BusinessContext'
-import { fetchContext, fetchDistribution, fetchSeries, fetchSummary, type Context, type SeriesRow, type Summary } from './api'
-import { AverageChart, DistributionChart, Funnel, VolumeChart } from './Charts'
+import { fetchContext, fetchDistribution, fetchGoogleCtr, fetchSeries, fetchSummary, type Context, type CtrRow, type SeriesRow, type Summary } from './api'
+import { AverageChart, DistributionChart, Funnel, GoogleCtrChart, VolumeChart } from './Charts'
 import GoogleRatingPanel from './GoogleRatingPanel'
 import ImprovementSection from './ImprovementSection'
 import KpiCard from './KpiCard'
+import { analyticsStateFromSearch, buildTrends, previousLabel, rangeSearch } from './rangeState'
 import {
-  PRESET_LABELS, allowedBuckets, defaultBucket, formatRange, presetRange, previousRange, rangeLength, validateCustom,
+  PRESET_LABELS, allowedBuckets, defaultBucket, formatRange, isDate, presetRange, previousRange, rangeLength, validateCustom,
   type Bucket, type DateRange, type Preset,
 } from './ranges'
-import { SMALL_SAMPLE_NOTE, clickThroughRate, formatAvg, formatInt, formatPercent, trend } from './trend'
+import { SMALL_SAMPLE_NOTE, clickThroughRate, formatAvg, formatInt, formatPercent } from './trend'
 
-interface Loaded { current: Summary; previous: Summary | null; series: SeriesRow[]; distribution: number[]; range: DateRange; bucket: Bucket }
+interface Loaded { current: Summary; previous: Summary | null; series: SeriesRow[]; distribution: number[]; ctr: CtrRow[]; range: DateRange; bucket: Bucket }
 
 const PRESETS: Preset[] = ['7d', '30d', '90d', 'all', 'custom']
 const input = 'rounded-lg border-0 bg-white px-2.5 py-1.5 text-sm ring-1 ring-slate-300 focus:ring-2 focus:ring-indigo-600 focus:outline-none'
@@ -20,9 +21,14 @@ const input = 'rounded-lg border-0 bg-white px-2.5 py-1.5 text-sm ring-1 ring-sl
 export default function AnalyticsPage() {
   const { business, loading } = useBusiness()
   const [ctx, setCtx] = useState<Context | null>(null)
-  const [preset, setPreset] = useState<Preset>('30d')
-  const [customDraft, setCustomDraft] = useState({ from: '', to: '' })
-  const [customApplied, setCustomApplied] = useState<DateRange | null>(null)
+  // The range lives in the URL (?range=7d), so links and the back button work and nothing is kept in browser storage.
+  const [params, setParams] = useSearchParams()
+  const search = `?${params.toString()}`
+  const { preset, custom: customApplied } = useMemo(
+    () => analyticsStateFromSearch(search, (f, t) => isDate(f) && isDate(t) && f <= t && rangeLength({ from: f, to: t }) <= 3650),
+    [search],
+  )
+  const [customDraft, setCustomDraft] = useState({ from: customApplied?.from ?? '', to: customApplied?.to ?? '' })
   const [customError, setCustomError] = useState<string | null>(null)
   const [bucketPick, setBucketPick] = useState<Bucket | null>(null)
   const [data, setData] = useState<Loaded | null>(null)
@@ -37,7 +43,7 @@ export default function AnalyticsPage() {
 
   const range: DateRange | null = useMemo(() => {
     if (!ctx) return null
-    if (preset === 'custom') return customApplied
+    if (preset === 'custom') return customApplied && validateCustom(customApplied.from, customApplied.to, ctx.today) === null ? customApplied : null // null until a valid range is applied
     return presetRange(preset, ctx.today, ctx.first_date)
   }, [ctx, preset, customApplied])
 
@@ -53,10 +59,11 @@ export default function AnalyticsPage() {
       prev ? fetchSummary(prev) : Promise.resolve(null),
       fetchSeries(range, bucket),
       fetchDistribution(range),
+      fetchGoogleCtr(range),
     ])
-      .then(([current, previous, series, distribution]) => {
+      .then(([current, previous, series, distribution, ctr]) => {
         if (id !== latest.current) return
-        setData({ current, previous, series, distribution, range, bucket })
+        setData({ current, previous, series, distribution, ctr, range, bucket })
         setError(false)
       })
       .catch(() => id === latest.current && setError(true))
@@ -77,23 +84,14 @@ export default function AnalyticsPage() {
     if (!ctx) return
     const problem = validateCustom(customDraft.from, customDraft.to, ctx.today)
     setCustomError(problem)
-    if (!problem) setCustomApplied({ from: customDraft.from, to: customDraft.to })
+    if (!problem) setParams(new URLSearchParams(rangeSearch('custom', customDraft)))
   }
 
   const cur = data?.current
   const prev = data?.previous ?? null
-  const prevLabel = data && preset !== 'all' ? `previous ${rangeLength(data.range)} days` : undefined
-  const opts = (kind: 'count' | 'average' | 'rate') => ({ kind, curRatings: cur?.ratings ?? 0, prevRatings: prev ? prev.ratings : null })
+  const prevLabel = data && prev ? previousLabel(data.range) : undefined
   const ctrCur = cur ? clickThroughRate(cur.google_clicks, cur.page_views) : null
-  const ctrPrev = prev ? clickThroughRate(prev.google_clicks, prev.page_views) : null
-  const trends = cur && {
-    views: trend(cur.page_views, prev?.page_views ?? null, opts('count')),
-    ratings: trend(cur.ratings, prev?.ratings ?? null, opts('count')),
-    avg: trend(cur.avg_rating, prev?.avg_rating ?? null, opts('average')),
-    surveys: trend(cur.survey_completions, prev?.survey_completions ?? null, opts('count')),
-    clicks: trend(cur.google_clicks, prev?.google_clicks ?? null, opts('count')),
-    ctr: trend(ctrCur, ctrPrev, opts('rate')),
-  }
+  const trends = cur && buildTrends(cur, prev)
   const suppressedReason = trends && Object.values(trends).find((t) => t.direction === 'none' && t.reason)?.reason
   const noData = cur && cur.page_views === 0 && cur.ratings === 0 && cur.star_taps === 0
 
@@ -111,7 +109,7 @@ export default function AnalyticsPage() {
 
       <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Date range">
         {PRESETS.map((p) => (
-          <button key={p} type="button" aria-pressed={preset === p} onClick={() => { setPreset(p); setBucketPick(null) }} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${preset === p ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'}`}>
+          <button key={p} type="button" aria-pressed={preset === p} onClick={() => { setBucketPick(null); if (p === 'custom') setParams(new URLSearchParams(customApplied ? rangeSearch('custom', customApplied) : '?range=custom')); else setParams(new URLSearchParams(rangeSearch(p))) }} className={`rounded-lg px-3 py-1.5 text-sm font-medium ${preset === p ? 'bg-indigo-600 text-white' : 'bg-white text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50'}`}>
             {PRESET_LABELS[p]}
           </button>
         ))}
@@ -160,6 +158,7 @@ export default function AnalyticsPage() {
             <VolumeChart rows={data.series} bucket={data.bucket} />
             <AverageChart rows={data.series} bucket={data.bucket} goal={business.goal_rating} />
             <DistributionChart counts={data.distribution} />
+            <GoogleCtrChart rows={data.ctr} />
             <Funnel steps={[
               { label: 'Page views', value: cur.page_views },
               { label: 'Star taps', value: cur.star_taps },
@@ -170,7 +169,7 @@ export default function AnalyticsPage() {
 
           <p className="text-xs text-slate-500">
             Page views and clicks are raw counts: we don’t store a visitor ID, so one person opening the page twice counts twice.
-            Ratings are counted once per visit from saved feedback, not from star taps. Click-through rate can exceed 100% if people click more than once.
+            Ratings are counted once per visit from saved feedback, not from star taps. The overall click-through rate (clicks ÷ page views) can exceed 100% if people click more than once; the by-star chart caps each star at one click per rating.
           </p>
         </>
       )}

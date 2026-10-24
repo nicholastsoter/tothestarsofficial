@@ -3,7 +3,7 @@ import type { Trend } from './trend'
 const ARROW = { up: '▲', down: '▼', flat: '▬', none: '' } as const
 
 /** One headline number. The arrow's colour says better/worse; its text and shape say it too, so colour is never alone. */
-export default function KpiCard({ label, value, trend, previous, hint }: { label: string; value: string; trend: Trend; previous?: string; hint?: string }) {
+export default function KpiCard({ label, value, trend, previous, hint, note }: { label: string; value: string; trend: Trend; previous?: string; hint?: string; note?: string }) {
   const colour = trend.direction === 'up' ? 'var(--good)' : trend.direction === 'down' ? 'var(--critical)' : 'var(--viz-text-2)'
   return (
     <div className="viz rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -18,6 +18,7 @@ export default function KpiCard({ label, value, trend, previous, hint }: { label
             {previous && <span> vs {previous}</span>}
           </>
         )}
+        {trend.direction === 'none' && note}
       </p>
     </div>
   )

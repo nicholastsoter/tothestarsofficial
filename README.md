@@ -25,6 +25,13 @@ funnel, goal progress and before/after tracking, all computed in the database (s
 functions, so each owner only ever sees their own numbers). The live Google rating panel is
 fetched live once per page load, never stored (see `docs/ROADMAP.md`, "Google rating panel").
 
+**Phase 4b: Overview.** The dashboard home shows an Overview once setup is finished (the checklist
+stays until then): ratings collected, average rating, and new feedback awaiting response, two small
+charts, and one rule-based sentence (no AI) such as "Average rating is up 0.3 vs the previous 30 days."
+The range (7 / 30 / 90 days / all time) lives in the URL (`?range=7d`) and carries over to "View full
+analytics". Analytics gained **Google click-through by star rating** (`analytics_google_ctr`, migration
+0009). Overview and Analytics share one trend function, so they always agree.
+
 ## Demo data for the Analytics charts
 
 A script creates a clearly-labelled FAKE business (its own fake login, separate from your real
