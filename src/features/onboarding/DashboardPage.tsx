@@ -5,6 +5,7 @@ import { useBusiness } from '../../contexts/BusinessContext'
 import { publicReviewUrl } from '../../lib/links'
 import GoogleListingPicker from '../settings/GoogleListingPicker'
 import LogoUploader from '../settings/LogoUploader'
+import Overview from '../analytics/Overview'
 
 export default function DashboardPage() {
   const { business, loading, loadError, create } = useBusiness()
@@ -51,6 +52,27 @@ export default function DashboardPage() {
         <Link to="/qr" className="inline-block rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500">Open QR & Link</Link>
       </div>
     ),
+  }
+
+  const complete = !!business && doneCount === steps.length
+
+  // Once setup is finished the Overview takes over the top; the checklist only shows while steps are left.
+  if (complete) {
+    return (
+      <div className="space-y-6">
+        <Overview />
+        <div className="max-w-5xl">
+          <Card title="Your review page">
+            <p className="text-sm text-slate-600">Put the QR sign where customers will see it.</p>
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input readOnly aria-label="Review page link" value={publicReviewUrl(business.slug)} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 rounded-lg border-0 bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-300" />
+              <CopyButton text={publicReviewUrl(business.slug)} />
+              <a href={publicReviewUrl(business.slug)} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50">Preview</a>
+            </div>
+          </Card>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -100,16 +122,6 @@ export default function DashboardPage() {
         </ol>
       </Card>
 
-      {business && doneCount === steps.length && (
-        <Card title="You’re all set 🎉">
-          <p className="text-sm text-slate-600">Your review page is live. Put the QR sign where customers will see it.</p>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <input readOnly aria-label="Review page link" value={publicReviewUrl(business.slug)} onFocus={(e) => e.currentTarget.select()} className="min-w-0 flex-1 rounded-lg border-0 bg-slate-50 px-3 py-2 text-sm ring-1 ring-slate-300" />
-            <CopyButton text={publicReviewUrl(business.slug)} />
-            <a href={publicReviewUrl(business.slug)} target="_blank" rel="noopener noreferrer" className="rounded-lg bg-white px-3 py-2 text-center text-sm font-semibold text-slate-700 ring-1 ring-slate-300 hover:bg-slate-50">Preview</a>
-          </div>
-        </Card>
-      )}
     </div>
   )
 }

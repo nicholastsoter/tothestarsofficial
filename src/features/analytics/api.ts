@@ -11,6 +11,7 @@ export interface SeriesRow {
   star1: number; star2: number; star3: number; star4: number; star5: number
 }
 export interface Slice { from: string | null; to: string | null }
+export interface CtrRow { star: number; ratings: number; clicks: number; counted_clicks: number; click_through: number | null }
 export interface BeforeAfterRow {
   period: 'before' | 'after'; from_date: string; to_date: string; days: number; ratings: number; avg_rating: number | null
   star1: number; star2: number; star3: number; star4: number; star5: number
@@ -60,5 +61,14 @@ export async function fetchBeforeAfter(maxDays = 90): Promise<BeforeAfterRow[]> 
   return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
     period: r.period as 'before' | 'after', from_date: String(r.from_date), to_date: String(r.to_date), days: n(r.days), ratings: n(r.ratings), avg_rating: nn(r.avg_rating),
     star1: n(r.star1), star2: n(r.star2), star3: n(r.star3), star4: n(r.star4), star5: n(r.star5),
+  }))
+}
+
+/** One row per star 1-5, plus a star-0 row only when some clicks carry no star. */
+export async function fetchGoogleCtr(s: Slice): Promise<CtrRow[]> {
+  const { data, error } = await supabase.rpc('analytics_google_ctr', { p_from: s.from, p_to: s.to })
+  if (error) throw fail()
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    star: n(r.star), ratings: n(r.ratings), clicks: n(r.clicks), counted_clicks: n(r.counted_clicks), click_through: nn(r.click_through),
   }))
 }

@@ -262,3 +262,31 @@ business has no listing.
 
 **G7. Cost check**: Google Cloud Console, Billing, Reports (filter to Places API): "Place Details Enterprise" usage
 should match the number of checks you made. The first 1,000 requests each month are free.
+
+# Phase 4b manual test steps (Overview and click-through by star)
+
+Use the fake demo account from Phase 4 (it has ~120 days of data), then your real account for step B.
+
+## A. Overview
+1. Log in as the fake user and open **Dashboard**. Setup is complete, so you see **Overview** (no checklist): a one-line sentence, three numbers
+   (Ratings collected, Average rating, New feedback awaiting response), and two small charts.
+2. Click **7 days**. The address bar now ends in `?range=7d`, the numbers and charts change, and the sentence says "vs the previous 7 days".
+   Reload the page: it is still 7 days. Paste the address into another tab: same range. Edit it to `?range=banana`: you get 30 days.
+3. Click **All time**: the arrows disappear and the sentence says there is no earlier period to compare with.
+4. Click **View full analytics**: Analytics opens with the same range selected and the same Ratings collected / Average rating numbers.
+5. Developer tools, Application tab: Local Storage and Session Storage contain nothing about the range.
+6. Log in as a business that has not finished setup: you see the checklist, not the Overview.
+
+## B. Awaiting response
+1. With your real account, leave one inbox item as **New**: the third card shows its count (and "Open your inbox"). Mark it Resolved in the Inbox, return to Dashboard: the count drops. It says "Right now", and does not change with the range.
+
+## C. Click-through by star
+1. Open **Analytics** and scroll to **Google click-through by star rating**. Each star shows "N% · clicks of ratings"; hollow bars say "few ratings" (fewer than 5).
+2. Click **View as table**: ratings, raw Google clicks, clicks counted and the percentage per star. No percentage is ever above 100%.
+3. On your own review page (`/r/<slug>`), tap 5 stars, then tap the Google link twice. In Analytics (today's range) the 5-star line goes up by at most one counted click per rating; the table's raw clicks go up by two.
+4. Change the range on Analytics: the chart follows it, and the address bar follows too (`?range=...`).
+
+## D. Honest edge cases
+1. A brand-new business with no ratings: Overview says "No ratings in this period yet." and the click-through chart says there are no ratings.
+2. With fewer than 5 ratings in either period the sentence says "Not enough ratings yet to show a trend." and no arrows appear.
+

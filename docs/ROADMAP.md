@@ -96,6 +96,19 @@ Wired in `supabase/functions/_shared/resend.ts` and `alertSender.ts`. Secrets: `
 - **No dark theme yet:** the chart colours are the validated light-surface values.
 - **Seed script** uses its own fake business and login (not your real business) so fake rows can never mix with real ones; events can't carry a label, which is why it is a separate business.
 
+## Phase 4b assumptions I made (change any of them)
+
+- **The star is already recorded on Google clicks.** The public page sends the picked star with every `google_link_click`, and `public_track_event` stores it, so no schema or Edge Function change was needed. Clicks with no star (older rows, or a call without one) show as one extra "No star recorded" line in the table.
+- **Repeated clicks: capped within current data.** We keep no visit or visitor ID, so one customer clicking twice (the link appears twice on the page) is indistinguishable from two customers. Per star, the rate is `min(clicks, ratings) / ratings`, so it can never pass 100%; raw clicks stay visible in the table. This slightly flatters a star where one person clicked many times and others did not click.
+  - *Option for later (needs your approval, not built):* **one click per visit.** Give each visit a random visit id (the feedback row already is one per visit) and let `google_link_click` carry it, with a unique index so a visit counts once. Exact and simple, but it adds one column and changes `submit-public`/`public_track_event`.
+  - *Option for later:* **link click on the feedback row** (`feedback.google_clicked_at`). Exact per rating, nothing new to join, but it only works once a feedback row exists, so a click before the first star tap is lost.
+- **Small samples:** a star with fewer than 5 ratings gets a hollow bar and "few ratings"; a star with 0 ratings has no percentage ("no ratings"), never 0% or an error.
+- **"New feedback awaiting response"** is a right-now count (status New, with a message or answers), so it has no arrow and does not follow the range. A past-period "awaiting" number isn't recorded anywhere, so a comparison would be invented.
+- **Overview takes over** the dashboard top only when all four setup steps are done; the checklist disappears then, and the review link card stays below.
+- **Summary line rules (no AI), checked in this order:** no ratings → "No ratings in this period yet."; all time → "no earlier period, so there is no comparison to show"; fewer than 5 ratings in either period → "Not enough ratings yet to show a trend."; otherwise up / down / unchanged, using the same rule as the arrow (changes under 0.05 count as unchanged).
+- **Grouping** is Analytics' own rule: days for 7 and 30, weeks for 90, weeks (up to about 4 months of data) or months for all time.
+- **Range in the URL only** (`?range=7d|30d|90d|all`, or `?range=custom&from=&to=` on Analytics); anything unrecognised means 30 days. Nothing is kept in browser storage.
+
 ## Google rating panel (decided: fetch once per page load)
 
 - **What it does:** the Analytics tab shows the business's live Google star rating and review count. It
